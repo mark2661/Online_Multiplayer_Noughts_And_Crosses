@@ -1,0 +1,8 @@
+#ignore vs code folder
+.vscode
+
+#ignore swp files
+*.swp
+
+#ignore exe files
+*.exe
