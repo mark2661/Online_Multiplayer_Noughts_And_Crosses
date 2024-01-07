@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <stdlib.h>
 #include "raylib.h"
 
 #define WINDOW_WIDTH 900
@@ -93,6 +94,17 @@ int main(void)
     printf("client: connected to %s\n", s);
     freeaddrinfo(serverinfo); // struct not needed anymore
 
+
+    int numbytes;
+    char buf[1024];
+    if((numbytes = recv(sockfd, buf, 1023, 0)) == -1)
+    {
+        perror("recv");
+        exit(1);
+    }
+
+    buf[numbytes] = 0;
+    printf("client recieved: %s\n", buf);
 
     while (!WindowShouldClose())
     {
