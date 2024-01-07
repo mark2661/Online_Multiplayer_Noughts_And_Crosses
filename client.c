@@ -1,5 +1,12 @@
 #include <stdio.h>
 #include <math.h>
+#include <errno.h>
+#include <string.h>
+#include <netdb.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #include "raylib.h"
 
 #define WINDOW_WIDTH 900
@@ -12,6 +19,8 @@
 #define LEFT_MOUSE_BUTTON 0
 #define MIDDLE_MOUSE_BUTTON 1
 #define RIGHT_MOUSE_BUTTON 2
+#define IP "127.0.0.1"
+#define PORT "3490"
 
 
 
@@ -20,12 +29,14 @@ typedef struct {
     int col;
 }GridCell;
 
-void draw_grid_lines();
+void draw_grid_lines(void);
 void draw_cross(size_t, size_t);
 void draw_nought(size_t, size_t);
 void renderGame(int grid[3][3]);
 GridCell getGridCell(Vector2);
 // TODO: Add networking code for client
+void* get_in_addr(struct sockaddr*);
+
 
 int main(void)
 {
@@ -34,6 +45,54 @@ int main(void)
 
     // test game grid
     int arr[3][3] = {{-1, -1, -1}, {0, 1, 0}, {1, 1, 1}};
+
+    // networking code
+    int sockfd;
+    struct addrinfo hints, *serverinfo, *p;
+    int rv;
+    char s[INET6_ADDRSTRLEN];
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    rv = getaddrinfo(IP, PORT, &hints, &serverinfo);
+    if(rv != 0)
+    {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        return 1;
+    }
+
+    // loop through addrinfo linkedlist and connect to the first result we can
+    for(p = serverinfo; p!=NULL; p =p->ai_next)
+    {
+        sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if(sockfd == -1)
+        {
+            perror("client: socket");
+            continue;
+        }
+
+        if(connect(sockfd, p->ai_addr, p->ai_addrlen) == -1)
+        {
+            close(sockfd);
+            perror("client: connect");
+            continue;
+        }
+
+        break;
+    }
+
+    if(p == NULL)
+    {
+        fprintf(stderr, "client: failed to connect\n");
+        return 2;
+    }
+
+    inet_ntop(p->ai_family, get_in_addr((struct sockaddr*)p->ai_addr), s, sizeof s);
+    printf("client: connected to %s\n", s);
+    freeaddrinfo(serverinfo); // struct not needed anymore
+
 
     while (!WindowShouldClose())
     {
@@ -48,10 +107,11 @@ int main(void)
     }
     
     CloseWindow();
+    close(sockfd);
     return 0;
 }
 
-void draw_grid_lines()
+void draw_grid_lines(void)
 {
     for(size_t i=1; i<3; i++)
     {
@@ -114,4 +174,14 @@ GridCell getGridCell(Vector2 mousePosition)
     gc.col = mousePosition.x / GRID_SPACING;
 
     return gc;
+}
+
+void* get_in_addr(struct sockaddr* sa)
+{
+    if(sa->sa_family == AF_INET)
+    {
+        return &(((struct sockaddr_in*)sa)->sin_addr);
+    }
+
+    return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
