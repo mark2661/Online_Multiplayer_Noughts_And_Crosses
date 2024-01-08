@@ -16,6 +16,11 @@
 #define BACKLOG 10
 #define MAX_ROW 3
 #define MAX_COL 3
+#define PLAYER_ONE_GRID_MARKER 1
+#define PLAYER_TWO_GRID_MARKER -1
+
+// DEBUG Functions
+void printGrid(int grid[3][3]);
 
 typedef enum Bool{
     False,
@@ -36,17 +41,22 @@ typedef struct{
     int col;
 }ClientInput;
 
-void updateGameGrid(Game* game, ClientInput clientInput, int value)
+Bool updateGameGrid(Game* game, ClientInput clientInput, int value)
 {
     int row = clientInput.row;
     int col = clientInput.col;
 
-    if(row < 0 || row >= MAX_ROW || col < 0 || col >= MAX_COL) { return; }
+    if(row < 0 || row >= MAX_ROW || col < 0 || col >= MAX_COL) { return False; }
     // only set grid cell if it hasn't alredy been set. i.e it equals zero.
     if(game->grid[row][col] == 0)
     {
         game->grid[row][col] = value;
+        return True;
     }
+    // grid cell already set -> invalid update
+    else{ return False; }
+
+    return True;
 }
 
 void resetGameGrid(Game* game)
@@ -62,7 +72,7 @@ void resetGameGrid(Game* game)
 
 Bool isGameOver(Game* game)
 {
-    // TODO: Improve this functin in the future tell notify which player won
+    // TODO: Improve this function in the future tell notify which player won
     // Check horizontal win conditions
     for(size_t row=0; row<MAX_ROW; row++)
     {
@@ -84,14 +94,23 @@ Bool isGameOver(Game* game)
     int r2lDiagonal = game->grid[0][2] + game->grid[1][1] + game->grid[0][2];
     if(r2lDiagonal == 3 || r2lDiagonal == -3) { return True; }
 
-    // No one has won
-    return False;
+    //check draw condtion
+    for (size_t row = 0; row < MAX_ROW; row++)
+    {
+        for (size_t col = 0; col < MAX_COL; col++)
+        {
+            if(game->grid[row][col] == 0) { return False;}
+        }
+    }
+    
+    // Draw -> No win condtion found but grid is full (no zero cells left)
+    return True;
 }
 
 HeapArrayInt getGameGridInNetworkByteOrder(Game* game)
 {
     int* size = (int*)malloc(sizeof(int));
-    *size = sizeof(int)*MAX_ROW*MAX_COL;
+    *size = sizeof(int)*(MAX_ROW*MAX_COL);
     int* noGameGrid = (int*)malloc(*size);
     for(size_t row=0; row<MAX_ROW; row++)
     {
@@ -304,17 +323,27 @@ int main(void)
                             {
                                 // process client1 input and switch turn to client2
                                 c1Input = getClientInput(client1);
-                                updateGameGrid(&game, c1Input, 1);
-                                noGameGrid = getGameGridInNetworkByteOrder(&game);
-                                sendClientUpdate(client1, noGameGrid);
-                                sendClientUpdate(client2, noGameGrid);
-                                freeHeapArrayInt(&noGameGrid);
+                                Bool successfulUpdate = updateGameGrid(&game, c1Input, PLAYER_ONE_GRID_MARKER);
+                                // printf("Is valid update p1: %d\n", successfulUpdate);
+                                if (successfulUpdate)
+                                {
+                                    printf("Successful update p1\n");
+                                    noGameGrid = getGameGridInNetworkByteOrder(&game);
+                                    sendClientUpdate(client1, noGameGrid);
+                                    sendClientUpdate(client2, noGameGrid);
+                                    freeHeapArrayInt(&noGameGrid);
+
+                                    // Switch turn to other player
+                                    playerOneTurn = !playerOneTurn;
+                                }
+
                                 if (isGameOver(&game))
                                 {
                                     printf("Game over! Player 1 won\n");
+                                    printGrid(game.grid);
                                 }
-                                // Switch turn to other player
-                                playerOneTurn = !playerOneTurn;
+
+                                
                             }
                             // reject client2's inputs whilst it is client1's turn
                             else if (pfds[i].fd == client2) { rejectClientInput(client2); }
@@ -326,21 +355,27 @@ int main(void)
                             {
                                 // process client2 input and switch turn to client1
                                 c2Input = getClientInput(client2);
-                                updateGameGrid(&game, c2Input, -1);
-                                noGameGrid = getGameGridInNetworkByteOrder(&game);
-                                sendClientUpdate(client1, noGameGrid);
-                                sendClientUpdate(client2, noGameGrid);
-                                freeHeapArrayInt(&noGameGrid);
+                                Bool successfulUpdate = updateGameGrid(&game, c2Input, PLAYER_TWO_GRID_MARKER);
+                                if (successfulUpdate)
+                                {
+                                    printf("Successful update p2\n");
+                                    noGameGrid = getGameGridInNetworkByteOrder(&game);
+                                    sendClientUpdate(client1, noGameGrid);
+                                    sendClientUpdate(client2, noGameGrid);
+                                    freeHeapArrayInt(&noGameGrid);
+
+                                    // Switch turn to other player
+                                    playerOneTurn = !playerOneTurn;
+                                }
                                 if (isGameOver(&game))
                                 {
                                     printf("Game over! Player 2 won\n");
+                                    printGrid(game.grid);
                                 }
-                                // Switch turn to other player
-                                playerOneTurn = !playerOneTurn;
+                                
                             }
                             // reject client1's inputs whilst it is client2's turn
                             else if (pfds[i].fd == client1) { rejectClientInput(client1); }
-
                         }
 
                     }
@@ -356,4 +391,18 @@ int main(void)
 
 
     return 0;
+}
+// DEBUG Functions
+void printGrid(int grid[3][3])
+{
+    for (size_t row = 0; row < MAX_ROW; row++)
+    {
+        printf("[ ");
+        for (size_t col = 0; col < MAX_COL; col++)
+        {
+            printf("%d ", grid[row][col]);
+        }
+        printf("]\n");
+    }
+    printf("***********************************************\n");
 }
