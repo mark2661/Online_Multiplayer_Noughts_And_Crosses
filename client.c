@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
+#include <poll.h>
 #include "raylib.h"
 
 #define WINDOW_WIDTH 900
@@ -20,10 +21,19 @@
 #define LEFT_MOUSE_BUTTON 0
 #define MIDDLE_MOUSE_BUTTON 1
 #define RIGHT_MOUSE_BUTTON 2
+#define MAX_ROW 3
+#define MAX_COL 3
 #define IP "127.0.0.1"
 #define PORT "3490"
+// #define POLL_WAIT_TIME 250
+#define POLL_WAIT_TIME 25
 
 
+
+typedef enum Bool{
+    False,
+    True
+} Bool;
 
 typedef struct {
     int row;
@@ -34,9 +44,14 @@ void draw_grid_lines(void);
 void draw_cross(size_t, size_t);
 void draw_nought(size_t, size_t);
 void renderGame(int grid[3][3]);
+Bool isGridValid(int*);
 GridCell getGridCell(Vector2);
 // TODO: Add networking code for client
 void* get_in_addr(struct sockaddr*);
+
+// DEBUG Functions
+void printGrid(int grid[3][3]);
+
 
 
 int main(void)
@@ -94,27 +109,77 @@ int main(void)
     printf("client: connected to %s\n", s);
     freeaddrinfo(serverinfo); // struct not needed anymore
 
-
+    int grid[3][3] = {{0,0,0}, {0,0,0}, {0,0,0}};
     int numbytes;
-    char buf[1024];
-    if((numbytes = recv(sockfd, buf, 1023, 0)) == -1)
-    {
-        perror("recv");
-        exit(1);
-    }
-
-    buf[numbytes] = 0;
-    printf("client recieved: %s\n", buf);
+    int temp[9] = {0};
+    struct pollfd pfds[1];
+    pfds[0].fd = sockfd;
+    pfds[0].events = POLLIN;
+    int fd_count = 1;
 
     while (!WindowShouldClose())
     {
         if(IsMouseButtonPressed(LEFT_MOUSE_BUTTON))
         {
             GridCell clickedGridCell = getGridCell(GetMousePosition());
+            int row = htonl((int)clickedGridCell.row);
+            int col = htonl((int)clickedGridCell.col);
+            int s;
+            s = send(sockfd, &row, sizeof row, 0);
+            if(s <= 0)
+            {
+                perror("send:row");
+                break;
+            }
+            s = send(sockfd, &col, sizeof col, 0);
+            if (s <= 0)
+            {
+                perror("send:col");
+                break;
+            }
+        }
+
+        // poll for 250ms
+        int poll_count = poll(pfds, fd_count, POLL_WAIT_TIME);
+        if(poll_count == -1)
+        {
+            perror("pool");
+            exit(1);
+        }
+        for(size_t i=0; i<fd_count; i++)
+        {
+            // check if socket is ready to read
+            if(pfds[i].revents & POLLIN)
+            {
+                // clear temp array before reading
+                memset(temp, 0, sizeof(temp));
+                numbytes = recv(sockfd, &temp, sizeof(temp), 0);
+                if (numbytes == -1)
+                {
+                    perror("recv");
+                    exit(1);
+                }
+
+                // If the grid is invalid reject it and DON'T copy content of temp to grid array.
+                if(isGridValid(temp))
+                {
+                    // copy contents of temp to grid variable and convert values to host byte order
+                    int idx = 0;
+                    for (size_t row = 0; row < MAX_ROW; row++)
+                    {
+                        for (size_t col = 0; col < MAX_COL; col++)
+                        {
+                            grid[row][col] = ntohl(temp[idx]);
+                            idx++;
+                        }
+                    }
+                    printGrid(grid);
+                }
+           }
         }
         BeginDrawing();
         ClearBackground(RAYWHITE);
-        renderGame(arr);
+        renderGame(grid);
         EndDrawing();
     }
     
@@ -166,7 +231,7 @@ void renderGame(int grid[3][3])
         {
             switch (grid[row][col])
             {
-            case -1:
+            case 2:
                 draw_nought(row, col);
                 break;
             case 1:
@@ -196,4 +261,35 @@ void* get_in_addr(struct sockaddr* sa)
     }
 
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
+}
+
+Bool isGridValid(int* grid)
+{
+    // Since array is passed as a pointer we can treat it as a 1D array of length (MAX_ROW*MAX_COL)?
+    // As opposed to a 2D [3][3] array
+    int value;
+    for(size_t i=0; i<(MAX_ROW*MAX_COL); i++)
+    {
+        value = ntohl(grid[i]);
+        if(abs(value) > 1)
+        {
+            return False;
+        }
+    }
+    return True;
+}
+
+// DEBUG Functions
+void printGrid(int grid[3][3])
+{
+    for (size_t row = 0; row < MAX_ROW; row++)
+    {
+        printf("[ ");
+        for (size_t col = 0; col < MAX_COL; col++)
+        {
+            printf("%d ", grid[row][col]);
+        }
+        printf("]\n");
+    }
+    printf("***********************************************\n");
 }
