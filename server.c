@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <poll.h>
 
 #define PORT "3490"
 #define BACKLOG 10
@@ -122,7 +123,7 @@ int sendClientUpdate(int client, HeapArrayInt noGameGrid)
 
 ClientInput getClientInput(int client)
 {
-    int r, c, s;
+    int r, c;
     ClientInput cInput;
     if (recv(client, &r, sizeof(int), 0) == -1)
     {
@@ -137,6 +138,21 @@ ClientInput getClientInput(int client)
     cInput.row = ntohl(r);
     cInput.col = ntohl(c);
     return cInput;
+}
+
+void rejectClientInput(int client)
+{
+    int r, c;
+    if (recv(client, &r, sizeof(int), 0) == -1)
+    {
+        perror("recv:r");
+        exit(1);
+    }
+    if (recv(client, &c, sizeof(int), 0) == -1)
+    {
+        perror("recv:c");
+        exit(1);
+    }
 }
 
 void sigchild_handler(int s)
@@ -263,6 +279,14 @@ int main(void)
             Game game;
             // Zero out game grid
             resetGameGrid(&game);
+            Bool playerOneTurn = True;
+            struct pollfd pfds[2];
+            pfds[0].fd = client1;
+            pfds[1].fd = client2;
+            pfds[0].events = POLLIN;
+            pfds[1].events = POLLIN;
+            int fd_count = 2;
+            
 
             while(!quit)
             {
@@ -272,31 +296,81 @@ int main(void)
                 // TODO: need to alternate between which client inputs the server accepts
                 // if the server recives an update from a client when it is not thier turn
                 // it should remove the update from the event queue and ignore it
-                c1Input = getClientInput(client1);
-                updateGameGrid(&game, c1Input, 1);
-                noGameGrid = getGameGridInNetworkByteOrder(&game);
-                sendClientUpdate(client1, noGameGrid);
-                sendClientUpdate(client2, noGameGrid);
-                freeHeapArrayInt(&noGameGrid);
-                if(isGameOver(&game))
+
+                // loop over poll results
+                // if player 1 turn
+                    // processs player 1
+                    // if player 2 input recived pull it from queue (with recv) and ignore it
+                    // flip playerOneTurn
+                // else if !player1 turn
+                    // process player 2
+                    // if player 1 input recived pull it from queue (with recv) and ignore it
+                    // flip playerOneTurn
+
+                // poll indefinetly until data recived from one of the client sockets
+                int poll_count = poll(pfds, fd_count, -1);
+                if(poll_count == -1)
                 {
-                    printf("Game over! Player 1 won\n");
+                    perror("poll");
+                    exit(1);
                 }
 
-                c2Input = getClientInput(client2); 
-                updateGameGrid(&game, c2Input, -1);
-                noGameGrid = getGameGridInNetworkByteOrder(&game);
-                sendClientUpdate(client1, noGameGrid);
-                sendClientUpdate(client2, noGameGrid);
-                freeHeapArrayInt(&noGameGrid);
-                if(isGameOver(&game))
+                // loop over poll results and check for data from client sockets 
+                for(size_t i=0; i<fd_count; i++)
                 {
-                    printf("Game over! Player 2 won\n");
+                    if(pfds[i].revents & POLLIN)
+                    {
+                        if(playerOneTurn)
+                        {
+                            if (pfds[i].fd == client1)
+                            {
+                                // process client1 input and switch turn to client2
+                                c1Input = getClientInput(client1);
+                                updateGameGrid(&game, c1Input, 1);
+                                noGameGrid = getGameGridInNetworkByteOrder(&game);
+                                sendClientUpdate(client1, noGameGrid);
+                                sendClientUpdate(client2, noGameGrid);
+                                freeHeapArrayInt(&noGameGrid);
+                                if (isGameOver(&game))
+                                {
+                                    printf("Game over! Player 1 won\n");
+                                }
+                                // Switch turn to other player
+                                playerOneTurn = !playerOneTurn;
+                            }
+                            // reject client2's inputs whilst it is client1's turn
+                            else if (pfds[i].fd == client2) { rejectClientInput(client2); }
+                        }
+
+                        else if(!playerOneTurn)
+                        {
+                            if (pfds[i].fd == client2)
+                            {
+                                // process client2 input and switch turn to client1
+                                c2Input = getClientInput(client2);
+                                updateGameGrid(&game, c2Input, -1);
+                                noGameGrid = getGameGridInNetworkByteOrder(&game);
+                                sendClientUpdate(client1, noGameGrid);
+                                sendClientUpdate(client2, noGameGrid);
+                                freeHeapArrayInt(&noGameGrid);
+                                if (isGameOver(&game))
+                                {
+                                    printf("Game over! Player 2 won\n");
+                                }
+                                // Switch turn to other player
+                                playerOneTurn = !playerOneTurn;
+                            }
+                            // reject client1's inputs whilst it is client2's turn
+                            else if (pfds[i].fd == client1) { rejectClientInput(client1); }
+
+                        }
+
+                    }
                 }
             }
-           close(client1);
-           close(client2);
-           exit(0);
+            close(client1);
+            close(client2);
+            exit(0);
         }
         close(client1);
         close(client2);
