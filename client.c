@@ -26,7 +26,7 @@
 #define IP "127.0.0.1"
 #define PORT "3490"
 // #define POLL_WAIT_TIME 250
-#define POLL_WAIT_TIME 25
+#define POLL_WAIT_TIME 25 // poll wait time in ms
 
 
 
@@ -58,9 +58,6 @@ int main(void)
 {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "BATTLE TTT!");
     SetTargetFPS(30);
-
-    // test game grid
-    int arr[3][3] = {{-1, -1, -1}, {0, 1, 0}, {1, 1, 1}};
 
     // networking code
     int sockfd;
@@ -139,7 +136,8 @@ int main(void)
             }
         }
 
-        // poll for 250ms
+        // poll the server connection socket to see if the server has sent any game updates
+        // if yes retrive the data from the socket and update the game grid stored locally.
         int poll_count = poll(pfds, fd_count, POLL_WAIT_TIME);
         if(poll_count == -1)
         {
@@ -160,10 +158,10 @@ int main(void)
                     exit(1);
                 }
 
-                // If the grid is invalid reject it and DON'T copy content of temp to grid array.
+                // If the temp grid is invalid reject it and DON'T copy content of temp to the "grid" array.
                 if(isGridValid(temp))
                 {
-                    // copy contents of temp to grid variable and convert values to host byte order
+                    // copy contents of temp to "grid" array and convert values to host byte order
                     int idx = 0;
                     for (size_t row = 0; row < MAX_ROW; row++)
                     {
@@ -177,6 +175,8 @@ int main(void)
                 }
            }
         }
+
+        // Rendering logic
         BeginDrawing();
         ClearBackground(RAYWHITE);
         renderGame(grid);
@@ -231,7 +231,7 @@ void renderGame(int grid[3][3])
         {
             switch (grid[row][col])
             {
-            case 2:
+            case -1: // TODO: May be an issue sending negative numbers over the network on certain machines
                 draw_nought(row, col);
                 break;
             case 1:

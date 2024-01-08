@@ -36,7 +36,11 @@ void updateGameGrid(Game* game, ClientInput clientInput, int value)
     int col = clientInput.col;
 
     if(row < 0 || row >= MAX_ROW || col < 0 || col >= MAX_COL) { return; }
-    game->grid[row][col] = value;
+    // only set grid cell if it hasn't alredy been set. i.e it equals zero.
+    if(game->grid[row][col] == 0)
+    {
+        game->grid[row][col] = value;
+    }
 }
 
 void resetGameGrid(Game* game)
@@ -209,15 +213,15 @@ int main(void)
         inet_ntop(client1_addr.ss_family, get_in_addr((struct sockaddr*)&client1_addr), s, sizeof s);
         printf("Server: got connection from %s\n", s);
 
-        // client2 = accept(sockfd, (struct sockaddr *)&client2_addr, &sin_size);
-        // if(client2 == -1)
-        // {
-        //     perror("accept");
-        //     continue;
-        // }
-        // inet_ntop(client2_addr.ss_family, get_in_addr((struct sockaddr*)&client2_addr), s, sizeof s);
-        // printf("Server: got connection from %s\n", s);
-        // printf("Starting Game!\n");
+        client2 = accept(sockfd, (struct sockaddr *)&client2_addr, &sin_size);
+        if(client2 == -1)
+        {
+            perror("accept");
+            continue;
+        }
+        inet_ntop(client2_addr.ss_family, get_in_addr((struct sockaddr*)&client2_addr), s, sizeof s);
+        printf("Server: got connection from %s\n", s);
+        printf("Starting Game!\n");
 
         if(!fork())
         {
@@ -232,24 +236,28 @@ int main(void)
                 ClientInput c1Input;
                 ClientInput c2Input;
                 HeapArrayInt noGameGrid;
+                // TODO: need to alternate between which client inputs the server accepts
+                // if the server recives an update from a client when it is not thier turn
+                // it should remove the update from the event queue and ignore it
                 c1Input = getClientInput(client1);
                 updateGameGrid(&game, c1Input, 1);
                 noGameGrid = getGameGridInNetworkByteOrder(&game);
                 sendClientUpdate(client1, noGameGrid);
-                // sendClientUpdate(client2, noGameGrid);
+                sendClientUpdate(client2, noGameGrid);
                 freeHeapArrayInt(&noGameGrid);
-                // c2Input = getClientInput(client2); 
-                // updateGameGrid(&game, c2Input, 2);
-                // // noGameGrid = getGameGridInNetworkByteOrder(&game);
-                // sendClientUpdate(client1, noGameGrid);
-                // sendClientUpdate(client2, noGameGrid);
-                // freeHeapArrayInt(&noGameGrid);
+                c2Input = getClientInput(client2); 
+                updateGameGrid(&game, c2Input, -1);
+                noGameGrid = getGameGridInNetworkByteOrder(&game);
+                sendClientUpdate(client1, noGameGrid);
+                sendClientUpdate(client2, noGameGrid);
+                freeHeapArrayInt(&noGameGrid);
             }
            close(client1);
+           close(client2);
            exit(0);
         }
         close(client1);
-        // close(client2);
+        close(client2);
     }
 
 
