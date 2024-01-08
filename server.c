@@ -142,17 +142,8 @@ ClientInput getClientInput(int client)
 
 void rejectClientInput(int client)
 {
-    int r, c;
-    if (recv(client, &r, sizeof(int), 0) == -1)
-    {
-        perror("recv:r");
-        exit(1);
-    }
-    if (recv(client, &c, sizeof(int), 0) == -1)
-    {
-        perror("recv:c");
-        exit(1);
-    }
+    // get the client input but ignore (and don't return) it.
+    getClientInput(client);
 }
 
 void sigchild_handler(int s)
@@ -293,19 +284,6 @@ int main(void)
                 ClientInput c1Input;
                 ClientInput c2Input;
                 HeapArrayInt noGameGrid;
-                // TODO: need to alternate between which client inputs the server accepts
-                // if the server recives an update from a client when it is not thier turn
-                // it should remove the update from the event queue and ignore it
-
-                // loop over poll results
-                // if player 1 turn
-                    // processs player 1
-                    // if player 2 input recived pull it from queue (with recv) and ignore it
-                    // flip playerOneTurn
-                // else if !player1 turn
-                    // process player 2
-                    // if player 1 input recived pull it from queue (with recv) and ignore it
-                    // flip playerOneTurn
 
                 // poll indefinetly until data recived from one of the client sockets
                 int poll_count = poll(pfds, fd_count, -1);
