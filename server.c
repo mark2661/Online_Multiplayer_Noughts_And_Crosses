@@ -16,6 +16,11 @@
 #define MAX_ROW 3
 #define MAX_COL 3
 
+typedef enum Bool{
+    False,
+    True
+} Bool;
+
 typedef struct{
     int grid[3][3];
 } Game;
@@ -52,6 +57,34 @@ void resetGameGrid(Game* game)
             game->grid[row][col] = 0;
         }
     }
+}
+
+Bool isGameOver(Game* game)
+{
+    // TODO: Improve this functin in the future tell notify which player won
+    // Check horizontal win conditions
+    for(size_t row=0; row<MAX_ROW; row++)
+    {
+        int sum = game->grid[row][0] + game->grid[row][1] + game->grid[row][2];
+        if(sum == 3 || sum == -3) { return True; }
+    }
+
+    // Check vertical win conditions
+    for (size_t col = 0; col < MAX_COL; col++)
+    {
+        int sum = game->grid[0][col] + game->grid[1][col] + game->grid[2][col];
+        if(sum == 3 || sum == -3) { return True; }
+    }
+
+    // Check diagonal win conditons
+    int l2rDiagonal = game->grid[0][0] + game->grid[1][1] + game->grid[2][2];
+    if(l2rDiagonal == 3 || l2rDiagonal == -3) { return True; }
+    
+    int r2lDiagonal = game->grid[0][2] + game->grid[1][1] + game->grid[0][2];
+    if(r2lDiagonal == 3 || r2lDiagonal == -3) { return True; }
+
+    // No one has won
+    return False;
 }
 
 HeapArrayInt getGameGridInNetworkByteOrder(Game* game)
@@ -245,12 +278,21 @@ int main(void)
                 sendClientUpdate(client1, noGameGrid);
                 sendClientUpdate(client2, noGameGrid);
                 freeHeapArrayInt(&noGameGrid);
+                if(isGameOver(&game))
+                {
+                    printf("Game over! Player 1 won\n");
+                }
+
                 c2Input = getClientInput(client2); 
                 updateGameGrid(&game, c2Input, -1);
                 noGameGrid = getGameGridInNetworkByteOrder(&game);
                 sendClientUpdate(client1, noGameGrid);
                 sendClientUpdate(client2, noGameGrid);
                 freeHeapArrayInt(&noGameGrid);
+                if(isGameOver(&game))
+                {
+                    printf("Game over! Player 2 won\n");
+                }
             }
            close(client1);
            close(client2);
