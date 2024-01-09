@@ -18,6 +18,8 @@
 #define LINE_THICKNESS 3
 #define NOUGHT_OUTER_RADIUS 125
 #define NOUGHT_INNER_RADIUS NOUGHT_OUTER_RADIUS - LINE_THICKNESS
+#define CROSS_SYMBOL 1
+#define NOUGHT_SYMBOL -1
 #define LEFT_MOUSE_BUTTON 0
 #define MIDDLE_MOUSE_BUTTON 1
 #define RIGHT_MOUSE_BUTTON 2
@@ -231,10 +233,12 @@ void renderGame(int grid[3][3])
         {
             switch (grid[row][col])
             {
-            case -1: // TODO: May be an issue sending negative numbers over the network on certain machines
+            // TODO: May be an issue sending negative numbers over the network on certain machines
+            // NOUGHT_SYMBOL = -1
+            case NOUGHT_SYMBOL:
                 draw_nought(row, col);
                 break;
-            case 1:
+            case CROSS_SYMBOL:
                 draw_cross(row, col);
                 break;
             default:

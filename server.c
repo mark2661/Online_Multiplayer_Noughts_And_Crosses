@@ -16,6 +16,7 @@
 #define BACKLOG 10
 #define MAX_ROW 3
 #define MAX_COL 3
+#define WINNING_SCORE MAX_COL
 #define PLAYER_ONE_GRID_MARKER 1
 #define PLAYER_TWO_GRID_MARKER -1
 
@@ -88,22 +89,22 @@ enum GameResult isGameOver(Game* game)
     for(size_t row=0; row<MAX_ROW; row++)
     {
         int sum = game->grid[row][0] + game->grid[row][1] + game->grid[row][2];
-        if(sum == 3 || sum == -3) { return (sum == 3) ? P1WIN : P2WIN; }
+        if(abs(sum) == WINNING_SCORE) { return (sum == 3) ? P1WIN : P2WIN; }
     }
 
     // Check vertical win conditions
     for (size_t col = 0; col < MAX_COL; col++)
     {
         int sum = game->grid[0][col] + game->grid[1][col] + game->grid[2][col];
-        if(sum == 3 || sum == -3) { return (sum == 3) ? P1WIN : P2WIN; }
+        if(abs(sum) == WINNING_SCORE) { return (sum == 3) ? P1WIN : P2WIN; }
     }
 
     // Check diagonal win conditons
     int l2rDiagonal = game->grid[0][0] + game->grid[1][1] + game->grid[2][2];
-    if(l2rDiagonal == 3 || l2rDiagonal == -3) { return (l2rDiagonal == 3) ? P1WIN : P2WIN; }
+    if(abs(l2rDiagonal) == 3) { return (l2rDiagonal == 3) ? P1WIN : P2WIN; }
     
     int r2lDiagonal = game->grid[0][2] + game->grid[1][1] + game->grid[0][2];
-    if(r2lDiagonal == 3 || r2lDiagonal == -3) { return (r2lDiagonal == 3) ? P1WIN : P2WIN; }
+    if(abs(r2lDiagonal) == 3) { return (r2lDiagonal == 3) ? P1WIN : P2WIN; }
 
     //check draw condtion
     for (size_t row = 0; row < MAX_ROW; row++)
@@ -346,14 +347,8 @@ int main(void)
                                     // Switch turn to other player
                                     playerOneTurn = !playerOneTurn;
                                 }
-
-                                // if (isGameOver(&game))
-                                // {
-                                //     printf("Game over! Player 1 won\n");
-                                // }
-
-                                
                             }
+
                             // reject client2's inputs whilst it is client1's turn
                             else if (pfds[i].fd == client2) { rejectClientInput(client2); }
                         }
@@ -375,11 +370,7 @@ int main(void)
                                     // Switch turn to other player
                                     playerOneTurn = !playerOneTurn;
                                 }
-                                // if (isGameOver(&game))
-                                // {
-                                //     printf("Game over! Player 2 won\n");
-                                // }
-                                
+                               
                             }
                             // reject client1's inputs whilst it is client2's turn
                             else if (pfds[i].fd == client1) { rejectClientInput(client1); }
@@ -390,13 +381,14 @@ int main(void)
                         {
                             switch (current_game_status)
                             {
-                            case 1:
+                                // TODO: handle server shutdown, end game, and notify clients of results
+                            case P1WIN:
                                 printf("Game over! Player 1 won\n");
                                 break;
-                            case 2: 
+                            case P2WIN: 
                                 printf("Game over! Player 2 won\n");
                                 break;
-                            case 3: 
+                            case DRAW: 
                                 printf("Game over! Draw\n");
                                 break;
                             default:
