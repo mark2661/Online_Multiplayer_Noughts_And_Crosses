@@ -15,7 +15,8 @@
 #define WINDOW_HEIGHT 900
 #define GRID_SPACING 300
 #define LINE_LENGTH 400
-#define LINE_THICKNESS 3
+#define LINE_THICKNESS 8
+#define LINE_THICKNESS_STRIKE 15
 #define NOUGHT_OUTER_RADIUS 125
 #define NOUGHT_INNER_RADIUS NOUGHT_OUTER_RADIUS - LINE_THICKNESS
 #define CROSS_SYMBOL 1
@@ -45,6 +46,13 @@ typedef struct {
 void draw_grid_lines(void);
 void draw_cross(size_t, size_t);
 void draw_nought(size_t, size_t);
+// TODO: Implement this function
+void strikeThrough(Vector2, Vector2);
+void strikeThroughRow(int row);
+void strikeThroughCol(int col);
+void strikeThroughl2rDiagonal(void);
+void strikeThroughr2lDiagonal(void);
+Vector2 getGridCellCentreCoord(int row, int col);
 void renderGame(int grid[3][3]);
 Bool isGridValid(int*);
 GridCell getGridCell(Vector2);
@@ -182,6 +190,7 @@ int main(void)
         BeginDrawing();
         ClearBackground(RAYWHITE);
         renderGame(grid);
+        // END TEST CODE
         EndDrawing();
     }
     
@@ -281,6 +290,48 @@ Bool isGridValid(int* grid)
         }
     }
     return True;
+}
+
+Vector2 getGridCellCentreCoord(int row, int col)
+{
+    double r = (row * GRID_SPACING) + (GRID_SPACING / 2);
+    double c = (col * GRID_SPACING) + (GRID_SPACING / 2);
+
+    Vector2 centreCoord = {c, r};
+    return  centreCoord;
+}
+
+void strikeThrough(Vector2 start, Vector2 end)
+{
+    DrawLineEx(start, end, LINE_THICKNESS_STRIKE, RED);
+}
+
+void strikeThroughRow(int row)
+{
+    Vector2 start = {0, (row*GRID_SPACING + (GRID_SPACING/2))};
+    Vector2 end = {GRID_SPACING*MAX_COL, (row*GRID_SPACING + (GRID_SPACING/2))};
+    strikeThrough(start, end);
+}
+
+void strikeThroughCol(int col)
+{
+    Vector2 start = {(col*GRID_SPACING +(GRID_SPACING / 2)), 0};
+    Vector2 end = {(col*GRID_SPACING +(GRID_SPACING / 2)), GRID_SPACING*MAX_ROW};
+    strikeThrough(start, end);
+}
+
+void strikeThroughl2rDiagonal(void)
+{
+    Vector2 start = {0, 0};
+    Vector2 end = {(GRID_SPACING*MAX_COL), (GRID_SPACING*MAX_ROW)};
+    strikeThrough(start, end);
+}
+
+void strikeThroughr2lDiagonal(void)
+{
+    Vector2 start = {(GRID_SPACING*MAX_COL), 0};
+    Vector2 end = {0, (GRID_SPACING*MAX_ROW)};
+    strikeThrough(start, end);
 }
 
 // DEBUG Functions
