@@ -27,6 +27,13 @@ typedef enum Bool{
     True
 } Bool;
 
+enum GameResult{
+    GAME_IN_PROGRESS,
+    P1WIN,
+    P2WIN,
+    DRAW
+};
+
 typedef struct{
     int grid[3][3];
 } Game;
@@ -70,41 +77,45 @@ void resetGameGrid(Game* game)
     }
 }
 
-Bool isGameOver(Game* game)
+enum GameResult isGameOver(Game* game)
 {
     // TODO: Improve this function in the future tell notify which player won
+    // could use an enum with a set of return codes 0 indicates game not over (False value), 
+    // 1 = player1 has won, 2 = player2 has won, 3 = draw (All True values)
+
+
     // Check horizontal win conditions
     for(size_t row=0; row<MAX_ROW; row++)
     {
         int sum = game->grid[row][0] + game->grid[row][1] + game->grid[row][2];
-        if(sum == 3 || sum == -3) { return True; }
+        if(sum == 3 || sum == -3) { return (sum == 3) ? P1WIN : P2WIN; }
     }
 
     // Check vertical win conditions
     for (size_t col = 0; col < MAX_COL; col++)
     {
         int sum = game->grid[0][col] + game->grid[1][col] + game->grid[2][col];
-        if(sum == 3 || sum == -3) { return True; }
+        if(sum == 3 || sum == -3) { return (sum == 3) ? P1WIN : P2WIN; }
     }
 
     // Check diagonal win conditons
     int l2rDiagonal = game->grid[0][0] + game->grid[1][1] + game->grid[2][2];
-    if(l2rDiagonal == 3 || l2rDiagonal == -3) { return True; }
+    if(l2rDiagonal == 3 || l2rDiagonal == -3) { return (l2rDiagonal == 3) ? P1WIN : P2WIN; }
     
     int r2lDiagonal = game->grid[0][2] + game->grid[1][1] + game->grid[0][2];
-    if(r2lDiagonal == 3 || r2lDiagonal == -3) { return True; }
+    if(r2lDiagonal == 3 || r2lDiagonal == -3) { return (r2lDiagonal == 3) ? P1WIN : P2WIN; }
 
     //check draw condtion
     for (size_t row = 0; row < MAX_ROW; row++)
     {
         for (size_t col = 0; col < MAX_COL; col++)
         {
-            if(game->grid[row][col] == 0) { return False;}
+            if(game->grid[row][col] == 0) { return GAME_IN_PROGRESS;}
         }
     }
     
     // Draw -> No win condtion found but grid is full (no zero cells left)
-    return True;
+    return DRAW;
 }
 
 HeapArrayInt getGameGridInNetworkByteOrder(Game* game)
@@ -327,7 +338,6 @@ int main(void)
                                 // printf("Is valid update p1: %d\n", successfulUpdate);
                                 if (successfulUpdate)
                                 {
-                                    printf("Successful update p1\n");
                                     noGameGrid = getGameGridInNetworkByteOrder(&game);
                                     sendClientUpdate(client1, noGameGrid);
                                     sendClientUpdate(client2, noGameGrid);
@@ -337,11 +347,10 @@ int main(void)
                                     playerOneTurn = !playerOneTurn;
                                 }
 
-                                if (isGameOver(&game))
-                                {
-                                    printf("Game over! Player 1 won\n");
-                                    printGrid(game.grid);
-                                }
+                                // if (isGameOver(&game))
+                                // {
+                                //     printf("Game over! Player 1 won\n");
+                                // }
 
                                 
                             }
@@ -358,7 +367,6 @@ int main(void)
                                 Bool successfulUpdate = updateGameGrid(&game, c2Input, PLAYER_TWO_GRID_MARKER);
                                 if (successfulUpdate)
                                 {
-                                    printf("Successful update p2\n");
                                     noGameGrid = getGameGridInNetworkByteOrder(&game);
                                     sendClientUpdate(client1, noGameGrid);
                                     sendClientUpdate(client2, noGameGrid);
@@ -367,15 +375,33 @@ int main(void)
                                     // Switch turn to other player
                                     playerOneTurn = !playerOneTurn;
                                 }
-                                if (isGameOver(&game))
-                                {
-                                    printf("Game over! Player 2 won\n");
-                                    printGrid(game.grid);
-                                }
+                                // if (isGameOver(&game))
+                                // {
+                                //     printf("Game over! Player 2 won\n");
+                                // }
                                 
                             }
                             // reject client1's inputs whilst it is client2's turn
                             else if (pfds[i].fd == client1) { rejectClientInput(client1); }
+                        }
+
+                        enum GameResult current_game_status = isGameOver(&game);
+                        if(current_game_status)
+                        {
+                            switch (current_game_status)
+                            {
+                            case 1:
+                                printf("Game over! Player 1 won\n");
+                                break;
+                            case 2: 
+                                printf("Game over! Player 2 won\n");
+                                break;
+                            case 3: 
+                                printf("Game over! Draw\n");
+                                break;
+                            default:
+                                break;
+                            }
                         }
 
                     }
