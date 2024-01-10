@@ -19,9 +19,21 @@
 #define WINNING_SCORE MAX_COL
 #define PLAYER_ONE_GRID_MARKER 1
 #define PLAYER_TWO_GRID_MARKER -1
+#define SERVER_MESSAGE_LENGTH (MAX_ROW*MAX_COL) + 1
+#define SERVER_MESSAGE_LENGTH_BYTES sizeof(int)*(SERVER_MESSAGE_LENGTH)
 
 // DEBUG Functions
 void printGrid(int grid[3][3]);
+
+typedef enum ServerMessageCode{
+    INVALID = -1,
+    WAITING_FOR_OPPONENT,
+    OPPONENT_DISSCONNECTED,
+    GAME_DATA_UPDATE,
+    GAME_OVER_WIN,
+    GAME_OVER_LOSS,
+    GAME_OVER_DRAW
+} ServerMessageCode;
 
 typedef enum Bool{
     False,
@@ -33,6 +45,12 @@ enum GameResult{
     P1WIN,
     P2WIN,
     DRAW
+};
+
+enum Player{
+    PLAYER_NONE,
+    PLAYER_ONE,
+    PLAYER_TWO
 };
 
 typedef struct{
@@ -143,13 +161,58 @@ void freeHeapArrayInt(HeapArrayInt* arr)
 
 int sendClientUpdate(int client, HeapArrayInt noGameGrid)
 {
-    int s = send(client, noGameGrid.array, *(noGameGrid.size), 0);
+    // TODO: may have to refactor this it may be a little messy and hard to follow
+    int noGameGridWithSererMessageCode[*(noGameGrid.size)+1];  
+    // prepend server message code
+    noGameGridWithSererMessageCode[0] = htonl(GAME_DATA_UPDATE);
+    memcpy(noGameGridWithSererMessageCode+1, noGameGrid.array, *(noGameGrid.size));
+    // int s = send(client, noGameGrid.array, *(noGameGrid.size), 0);
+    int s = send(client, noGameGridWithSererMessageCode, (*(noGameGrid.size)+(1*sizeof(int))), 0);
     if (s == -1)
     {
         perror("send");
         exit(1);
     }
     return s;
+}
+
+void sendGameOverUpdate(int clients[2], enum Player winner)
+{
+    int playerOneMessege[SERVER_MESSAGE_LENGTH];
+    int playerTwoMessege[SERVER_MESSAGE_LENGTH];
+    if (winner == PLAYER_ONE)
+    {
+        playerOneMessege[0] = htonl(GAME_OVER_WIN);
+        playerTwoMessege[0] = htonl(GAME_OVER_LOSS);
+    }
+    else if(winner == PLAYER_TWO)
+    {
+        playerOneMessege[0] = htonl(GAME_OVER_LOSS);
+        playerTwoMessege[0] = htonl(GAME_OVER_WIN);
+    }
+    else // DRAW
+    {
+        playerOneMessege[0] = htonl(GAME_OVER_DRAW);
+        playerTwoMessege[0] = htonl(GAME_OVER_DRAW);
+    }
+
+    // pad remainder of client messages with zeros to fit the server message length
+    memset(playerOneMessege + 1, 0, SERVER_MESSAGE_LENGTH_BYTES-(1*sizeof(int)));
+    memset(playerTwoMessege + 1, 0, SERVER_MESSAGE_LENGTH_BYTES-(1*sizeof(int)));
+
+    int s1 = send(clients[0], playerOneMessege, SERVER_MESSAGE_LENGTH_BYTES, 0);
+    if (s1 == -1)
+    {
+        perror("sendGameOverUpdate:send");
+        exit(1);
+    }
+
+    int s2 = send(clients[1], playerTwoMessege, SERVER_MESSAGE_LENGTH_BYTES, 0);
+    if (s2 == -1)
+    {
+        perror("sendGameOverUpdate:send");
+        exit(1);
+    }
 }
 
 ClientInput getClientInput(int client)
@@ -340,6 +403,8 @@ int main(void)
                                 if (successfulUpdate)
                                 {
                                     noGameGrid = getGameGridInNetworkByteOrder(&game);
+                                    // (1)TODO: need to design a protocol for sending messages so the server and
+                                    // client can send different types of messages to one another.
                                     sendClientUpdate(client1, noGameGrid);
                                     sendClientUpdate(client2, noGameGrid);
                                     freeHeapArrayInt(&noGameGrid);
@@ -379,17 +444,22 @@ int main(void)
                         enum GameResult current_game_status = isGameOver(&game);
                         if(current_game_status)
                         {
+                            int c[2] = {client1, client2};
                             switch (current_game_status)
                             {
-                                // TODO: handle server shutdown, end game, and notify clients of results
+                                // (2)TODO: handle server shutdown, end game, and notify clients of results (see (1))
+                                // need to also notify loseing player
                             case P1WIN:
                                 printf("Game over! Player 1 won\n");
+                                sendGameOverUpdate(c, PLAYER_ONE);
                                 break;
                             case P2WIN: 
                                 printf("Game over! Player 2 won\n");
+                                sendGameOverUpdate(c, PLAYER_TWO);
                                 break;
                             case DRAW: 
                                 printf("Game over! Draw\n");
+                                sendGameOverUpdate(c, PLAYER_NONE);
                                 break;
                             default:
                                 break;
@@ -407,8 +477,7 @@ int main(void)
         close(client2);
     }
 
-
-    return 0;
+    // return 0;
 }
 // DEBUG Functions
 void printGrid(int grid[3][3])

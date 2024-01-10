@@ -43,6 +43,17 @@ typedef struct {
     int col;
 }GridCell;
 
+typedef enum ServerMessageCode{
+    INVALID = -1,
+    WAITING_FOR_OPPONENT,
+    OPPONENT_DISSCONNECTED,
+    GAME_DATA_UPDATE,
+    GAME_OVER_WIN,
+    GAME_OVER_LOSS,
+    GAME_OVER_DRAW
+} ServerMessageCode;
+
+void recieveAndUpdateGameData(int sockfd, int grid[][MAX_COL], int temp[MAX_ROW*MAX_COL]);
 void draw_grid_lines(void);
 void draw_cross(size_t, size_t);
 void draw_nought(size_t, size_t);
@@ -117,7 +128,9 @@ int main(void)
     freeaddrinfo(serverinfo); // struct not needed anymore
 
     int grid[3][3] = {{0,0,0}, {0,0,0}, {0,0,0}};
+    Bool gameover = False;
     int numbytes;
+    int buf[10];
     int temp[9] = {0};
     struct pollfd pfds[1];
     pfds[0].fd = sockfd;
@@ -159,44 +172,85 @@ int main(void)
             // check if socket is ready to read
             if(pfds[i].revents & POLLIN)
             {
-                // clear temp array before reading
-                memset(temp, 0, sizeof(temp));
-                numbytes = recv(sockfd, &temp, sizeof(temp), 0);
+                // clear reciver buffer before reading
+                memset(buf, 0, sizeof(int)*(MAX_ROW*MAX_COL+1));
+                // numbytes = recv(sockfd, temp, sizeof(int) * (MAX_ROW * MAX_COL), 0);
+                numbytes = recv(sockfd, buf, sizeof(int)*(MAX_ROW*MAX_COL+1), 0);
                 if (numbytes == -1)
                 {
                     perror("recv");
                     exit(1);
                 }
 
-                // If the temp grid is invalid reject it and DON'T copy content of temp to the "grid" array.
-                if(isGridValid(temp))
+                int serverCode = ntohl(buf[0]);
+                switch (serverCode)
                 {
-                    // copy contents of temp to "grid" array and convert values to host byte order
-                    int idx = 0;
-                    for (size_t row = 0; row < MAX_ROW; row++)
-                    {
-                        for (size_t col = 0; col < MAX_COL; col++)
-                        {
-                            grid[row][col] = ntohl(temp[idx]);
-                            idx++;
-                        }
-                    }
-                    printGrid(grid);
+                case INVALID:
+                    break;
+                case WAITING_FOR_OPPONENT:
+                    break;
+                case OPPONENT_DISSCONNECTED:
+                    break;
+                case GAME_DATA_UPDATE:
+                    // clear temp array before reading
+                    memset(temp, 0, sizeof(int) * (MAX_ROW * MAX_COL));
+                    // copy game data to temp buffer
+                    memcpy(temp, buf + 1, sizeof(int) * (MAX_ROW * MAX_COL));
+                    recieveAndUpdateGameData(sockfd, grid, temp);
+                    break;
+                case GAME_OVER_WIN:
+                    printf("I WIN\n");
+                    gameover = True;
+                    break;
+                case GAME_OVER_LOSS:
+                    printf("I LOST\n");
+                    gameover = True;
+                    break;
+                case GAME_OVER_DRAW:
+                    printf("WE DREW\n");
+                    gameover = True;
+                    break;
+                default:
+                    break;
                 }
-           }
+            }
         }
 
         // Rendering logic
         BeginDrawing();
-        ClearBackground(RAYWHITE);
-        renderGame(grid);
-        // END TEST CODE
+
+        if(!gameover)
+        {
+            ClearBackground(RAYWHITE);
+            renderGame(grid);
+        }
+
         EndDrawing();
     }
     
     CloseWindow();
     close(sockfd);
     return 0;
+}
+
+void recieveAndUpdateGameData(int sockfd, int grid[][MAX_COL], int temp[MAX_ROW*MAX_COL])
+{
+        // If the temp grid is invalid reject it and DON'T copy content of temp to the "grid" array.
+    if (isGridValid(temp))
+    {
+        // // copy contents of temp to "grid" array and convert values to host byte order
+        int idx = 0;
+        for (size_t row = 0; row < MAX_ROW; row++)
+        {
+            for (size_t col = 0; col < MAX_COL; col++)
+            {
+                grid[row][col] = ntohl(temp[idx]);
+                idx++;
+            }
+        }
+
+        printGrid(grid);
+    }
 }
 
 void draw_grid_lines(void)
