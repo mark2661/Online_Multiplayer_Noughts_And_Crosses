@@ -14,7 +14,6 @@
 #include "globals.h"
 
 #define BACKLOG 10
-#define WINNING_SCORE MAX_COL
 
 // DEBUG Functions
 void printGrid(int grid[3][3]);
@@ -142,7 +141,7 @@ int sendClientUpdate(int client, HeapArrayInt noGameGrid)
 {
     // TODO: may have to refactor this it may be a little messy and hard to follow
     int noGameGridWithSererMessageCode[*(noGameGrid.size)+1];  
-    // prepend server message code
+    // prepend server message code in network byte order
     noGameGridWithSererMessageCode[0] = htonl(SERVER_MESSAGE_CODE_GAME_DATA_UPDATE);
     memcpy(noGameGridWithSererMessageCode+1, noGameGrid.array, *(noGameGrid.size));
     // int s = send(client, noGameGrid.array, *(noGameGrid.size), 0);
@@ -176,8 +175,8 @@ void sendGameOverUpdate(int clients[2], enum Player winner)
     }
 
     // pad remainder of client messages with zeros to fit the server message length
-    memset(playerOneMessege + 1, 0, SERVER_MESSAGE_LENGTH_BYTES-(1*sizeof(int)));
-    memset(playerTwoMessege + 1, 0, SERVER_MESSAGE_LENGTH_BYTES-(1*sizeof(int)));
+    memset(playerOneMessege + 1, 0, SERVER_MESSAGE_LENGTH_BYTES-(SERVER_MESSAGE_CODE_LENGTH*sizeof(int)));
+    memset(playerTwoMessege + 1, 0, SERVER_MESSAGE_LENGTH_BYTES-(SERVER_MESSAGE_CODE_LENGTH*sizeof(int)));
 
     int s1 = send(clients[0], playerOneMessege, SERVER_MESSAGE_LENGTH_BYTES, 0);
     if (s1 == -1)

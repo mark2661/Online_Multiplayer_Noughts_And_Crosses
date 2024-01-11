@@ -7,8 +7,10 @@
 #define PLAYER_TWO_GRID_MARKER -1
 #define CROSS_SYMBOL PLAYER_ONE_GRID_MARKER
 #define NOUGHT_SYMBOL PLAYER_TWO_GRID_MARKER 
-#define SERVER_MESSAGE_LENGTH (MAX_ROW*MAX_COL) + 1
+#define SERVER_MESSAGE_CODE_LENGTH 1 //server message code is in integer value which should be prepended to all server->client messages 
+#define SERVER_MESSAGE_LENGTH (MAX_ROW*MAX_COL) + SERVER_MESSAGE_CODE_LENGTH 
 #define SERVER_MESSAGE_LENGTH_BYTES sizeof(int)*(SERVER_MESSAGE_LENGTH)
+#define WINNING_SCORE MAX_COL
 #define PORT "3490"
 
 typedef enum ServerMessageCode{

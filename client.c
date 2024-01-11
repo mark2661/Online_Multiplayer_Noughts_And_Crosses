@@ -31,10 +31,17 @@ typedef struct {
     int col;
 }GridCell;
 
+typedef struct {
+    Vector2 start;
+    Vector2 end;
+} Raylib_Line_Info;
+
 void recieveAndUpdateGameData(int sockfd, int grid[][MAX_COL], int temp[MAX_ROW*MAX_COL]);
 void draw_grid_lines(void);
 void draw_cross(size_t, size_t);
 void draw_nought(size_t, size_t);
+// Raylib_Line_Info getWinningLine(int grid[][MAX_COL]);
+void strikeThroughWinningLine(int grid[][MAX_COL]);
 void strikeThrough(Vector2, Vector2);
 void strikeThroughRow(int row);
 void strikeThroughCol(int col);
@@ -193,13 +200,15 @@ int main(void)
 
         // Rendering logic
         BeginDrawing();
-
         if(!gameover)
         {
             ClearBackground(RAYWHITE);
             renderGame(grid);
         }
-
+        else
+        {
+            strikeThroughWinningLine(grid);
+        }
         EndDrawing();
     }
     
@@ -328,6 +337,42 @@ Vector2 getGridCellCentreCoord(int row, int col)
 
     Vector2 centreCoord = {c, r};
     return  centreCoord;
+}
+
+void strikeThroughWinningLine(int grid[][MAX_COL])
+{
+    // Check horizontal win conditions
+    for (size_t row = 0; row < MAX_ROW; row++)
+    {
+        int sum = grid[row][0] + grid[row][1] + grid[row][2];
+        if (abs(sum) == WINNING_SCORE)
+        {
+            strikeThroughRow(row);
+        }
+    }
+
+    // Check vertical win conditions
+    for (size_t col = 0; col < MAX_COL; col++)
+    {
+        int sum = grid[0][col] + grid[1][col] + grid[2][col];
+        if (abs(sum) == WINNING_SCORE)
+        {
+            strikeThroughCol(col);
+        }
+    }
+
+    // Check diagonal win conditons
+    int l2rDiagonal = grid[0][0] + grid[1][1] + grid[2][2];
+    if (abs(l2rDiagonal) == 3)
+    {
+        strikeThroughl2rDiagonal();
+    }
+
+    int r2lDiagonal = grid[0][2] + grid[1][1] + grid[2][0];
+    if (abs(r2lDiagonal) == 3)
+    {
+        strikeThroughr2lDiagonal();
+    }
 }
 
 void strikeThrough(Vector2 start, Vector2 end)
