@@ -11,34 +11,13 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <poll.h>
+#include "globals.h"
 
-#define PORT "3490"
 #define BACKLOG 10
-#define MAX_ROW 3
-#define MAX_COL 3
 #define WINNING_SCORE MAX_COL
-#define PLAYER_ONE_GRID_MARKER 1
-#define PLAYER_TWO_GRID_MARKER -1
-#define SERVER_MESSAGE_LENGTH (MAX_ROW*MAX_COL) + 1
-#define SERVER_MESSAGE_LENGTH_BYTES sizeof(int)*(SERVER_MESSAGE_LENGTH)
 
 // DEBUG Functions
 void printGrid(int grid[3][3]);
-
-typedef enum ServerMessageCode{
-    INVALID = -1,
-    WAITING_FOR_OPPONENT,
-    OPPONENT_DISSCONNECTED,
-    GAME_DATA_UPDATE,
-    GAME_OVER_WIN,
-    GAME_OVER_LOSS,
-    GAME_OVER_DRAW
-} ServerMessageCode;
-
-typedef enum Bool{
-    False,
-    True
-} Bool;
 
 enum GameResult{
     GAME_IN_PROGRESS,
@@ -164,7 +143,7 @@ int sendClientUpdate(int client, HeapArrayInt noGameGrid)
     // TODO: may have to refactor this it may be a little messy and hard to follow
     int noGameGridWithSererMessageCode[*(noGameGrid.size)+1];  
     // prepend server message code
-    noGameGridWithSererMessageCode[0] = htonl(GAME_DATA_UPDATE);
+    noGameGridWithSererMessageCode[0] = htonl(SERVER_MESSAGE_CODE_GAME_DATA_UPDATE);
     memcpy(noGameGridWithSererMessageCode+1, noGameGrid.array, *(noGameGrid.size));
     // int s = send(client, noGameGrid.array, *(noGameGrid.size), 0);
     int s = send(client, noGameGridWithSererMessageCode, (*(noGameGrid.size)+(1*sizeof(int))), 0);
@@ -182,18 +161,18 @@ void sendGameOverUpdate(int clients[2], enum Player winner)
     int playerTwoMessege[SERVER_MESSAGE_LENGTH];
     if (winner == PLAYER_ONE)
     {
-        playerOneMessege[0] = htonl(GAME_OVER_WIN);
-        playerTwoMessege[0] = htonl(GAME_OVER_LOSS);
+        playerOneMessege[0] = htonl(SERVER_MESSAGE_CODE_GAME_OVER_WIN);
+        playerTwoMessege[0] = htonl(SERVER_MESSAGE_CODE_GAME_OVER_LOSS);
     }
     else if(winner == PLAYER_TWO)
     {
-        playerOneMessege[0] = htonl(GAME_OVER_LOSS);
-        playerTwoMessege[0] = htonl(GAME_OVER_WIN);
+        playerOneMessege[0] = htonl(SERVER_MESSAGE_CODE_GAME_OVER_LOSS);
+        playerTwoMessege[0] = htonl(SERVER_MESSAGE_CODE_GAME_OVER_WIN);
     }
     else // DRAW
     {
-        playerOneMessege[0] = htonl(GAME_OVER_DRAW);
-        playerTwoMessege[0] = htonl(GAME_OVER_DRAW);
+        playerOneMessege[0] = htonl(SERVER_MESSAGE_CODE_GAME_OVER_DRAW);
+        playerTwoMessege[0] = htonl(SERVER_MESSAGE_CODE_GAME_OVER_DRAW);
     }
 
     // pad remainder of client messages with zeros to fit the server message length

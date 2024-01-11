@@ -1,15 +1,16 @@
-#include <stdio.h>
-#include <math.h>
-#include <errno.h>
-#include <string.h>
-#include <netdb.h>
-#include <sys/types.h>
-#include <netinet/in.h>
+#include <stdio.h> 
+#include <math.h> 
+#include <errno.h> 
+#include <string.h> 
+#include <netdb.h> 
+#include <sys/types.h> 
+#include <netinet/in.h> 
 #include <sys/socket.h>
-#include <arpa/inet.h>
-#include <stdlib.h>
-#include <poll.h>
+#include <arpa/inet.h> 
+#include <stdlib.h> 
+#include <poll.h> 
 #include "raylib.h"
+#include "globals.h"
 
 #define WINDOW_WIDTH 900
 #define WINDOW_HEIGHT 900
@@ -19,45 +20,21 @@
 #define LINE_THICKNESS_STRIKE 15
 #define NOUGHT_OUTER_RADIUS 125
 #define NOUGHT_INNER_RADIUS NOUGHT_OUTER_RADIUS - LINE_THICKNESS
-#define CROSS_SYMBOL 1
-#define NOUGHT_SYMBOL -1
 #define LEFT_MOUSE_BUTTON 0
 #define MIDDLE_MOUSE_BUTTON 1
 #define RIGHT_MOUSE_BUTTON 2
-#define MAX_ROW 3
-#define MAX_COL 3
 #define IP "127.0.0.1"
-#define PORT "3490"
-// #define POLL_WAIT_TIME 250
 #define POLL_WAIT_TIME 25 // poll wait time in ms
-
-
-
-typedef enum Bool{
-    False,
-    True
-} Bool;
 
 typedef struct {
     int row;
     int col;
 }GridCell;
 
-typedef enum ServerMessageCode{
-    INVALID = -1,
-    WAITING_FOR_OPPONENT,
-    OPPONENT_DISSCONNECTED,
-    GAME_DATA_UPDATE,
-    GAME_OVER_WIN,
-    GAME_OVER_LOSS,
-    GAME_OVER_DRAW
-} ServerMessageCode;
-
 void recieveAndUpdateGameData(int sockfd, int grid[][MAX_COL], int temp[MAX_ROW*MAX_COL]);
 void draw_grid_lines(void);
 void draw_cross(size_t, size_t);
 void draw_nought(size_t, size_t);
-// TODO: Implement this function
 void strikeThrough(Vector2, Vector2);
 void strikeThroughRow(int row);
 void strikeThroughCol(int col);
@@ -67,7 +44,6 @@ Vector2 getGridCellCentreCoord(int row, int col);
 void renderGame(int grid[3][3]);
 Bool isGridValid(int*);
 GridCell getGridCell(Vector2);
-// TODO: Add networking code for client
 void* get_in_addr(struct sockaddr*);
 
 // DEBUG Functions
@@ -174,7 +150,6 @@ int main(void)
             {
                 // clear reciver buffer before reading
                 memset(buf, 0, sizeof(int)*(MAX_ROW*MAX_COL+1));
-                // numbytes = recv(sockfd, temp, sizeof(int) * (MAX_ROW * MAX_COL), 0);
                 numbytes = recv(sockfd, buf, sizeof(int)*(MAX_ROW*MAX_COL+1), 0);
                 if (numbytes == -1)
                 {
@@ -185,28 +160,28 @@ int main(void)
                 int serverCode = ntohl(buf[0]);
                 switch (serverCode)
                 {
-                case INVALID:
+                case SERVER_MESSAGE_CODE_INVALID:
                     break;
-                case WAITING_FOR_OPPONENT:
+                case SERVER_MESSAGE_CODE_WAITING_FOR_OPPONENT:
                     break;
-                case OPPONENT_DISSCONNECTED:
+                case SERVER_MESSAGE_CODE_OPPONENT_DISSCONNECTED:
                     break;
-                case GAME_DATA_UPDATE:
+                case SERVER_MESSAGE_CODE_GAME_DATA_UPDATE:
                     // clear temp array before reading
                     memset(temp, 0, sizeof(int) * (MAX_ROW * MAX_COL));
                     // copy game data to temp buffer
                     memcpy(temp, buf + 1, sizeof(int) * (MAX_ROW * MAX_COL));
                     recieveAndUpdateGameData(sockfd, grid, temp);
                     break;
-                case GAME_OVER_WIN:
+                case SERVER_MESSAGE_CODE_GAME_OVER_WIN:
                     printf("I WIN\n");
                     gameover = True;
                     break;
-                case GAME_OVER_LOSS:
+                case SERVER_MESSAGE_CODE_GAME_OVER_LOSS:
                     printf("I LOST\n");
                     gameover = True;
                     break;
-                case GAME_OVER_DRAW:
+                case SERVER_MESSAGE_CODE_GAME_OVER_DRAW:
                     printf("WE DREW\n");
                     gameover = True;
                     break;
