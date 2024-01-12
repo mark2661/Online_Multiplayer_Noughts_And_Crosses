@@ -114,8 +114,8 @@ int main(void)
     Bool opponent_dissconnected = False;
     char* game_result = NULL;
     int numbytes;
-    int buf[10];
-    int temp[9] = {0};
+    int buf[SERVER_MESSAGE_LENGTH];
+    int temp[SERVER_MESSAGE_LENGTH_WITHOUT_SERVER_MESSAGE_CODE] = {0};
     struct pollfd pfds[1];
     pfds[0].fd = sockfd;
     pfds[0].events = POLLIN;
@@ -157,8 +157,10 @@ int main(void)
             if(pfds[i].revents & POLLIN)
             {
                 // clear reciver buffer before reading
-                memset(buf, 0, sizeof(int)*(MAX_ROW*MAX_COL+1));
-                numbytes = recv(sockfd, buf, sizeof(int)*(MAX_ROW*MAX_COL+1), 0);
+                // memset(buf, 0, sizeof(int)*(MAX_ROW*MAX_COL+1));
+                // numbytes = recv(sockfd, buf, sizeof(int)*(MAX_ROW*MAX_COL+1), 0);
+                memset(buf, 0, SERVER_MESSAGE_LENGTH_BYTES);
+                numbytes = recv(sockfd, buf, SERVER_MESSAGE_LENGTH_BYTES, 0);
                 if (numbytes == -1)
                 {
                     perror("recv");
@@ -185,9 +187,9 @@ int main(void)
                     break;
                 case SERVER_MESSAGE_CODE_GAME_DATA_UPDATE:
                     // clear temp array before reading
-                    memset(temp, 0, sizeof(int) * (MAX_ROW * MAX_COL));
+                    memset(temp, 0, SERVER_MESSAGE_LENGTH_WITHOUT_SERVER_MESSAGE_CODE_BYTES);
                     // copy game data to temp buffer
-                    memcpy(temp, buf + 1, sizeof(int) * (MAX_ROW * MAX_COL));
+                    memcpy(temp, buf + 1, SERVER_MESSAGE_LENGTH_WITHOUT_SERVER_MESSAGE_CODE_BYTES);
                     recieveAndUpdateGameData(sockfd, grid, temp);
                     break;
                 case SERVER_MESSAGE_CODE_GAME_OVER_WIN:
