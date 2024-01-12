@@ -31,16 +31,14 @@ typedef struct {
     int col;
 }GridCell;
 
-typedef struct {
-    Vector2 start;
-    Vector2 end;
-} Raylib_Line_Info;
-
 void recieveAndUpdateGameData(int sockfd, int grid[][MAX_COL], int temp[MAX_ROW*MAX_COL]);
 void draw_grid_lines(void);
 void draw_cross(size_t, size_t);
 void draw_nought(size_t, size_t);
-// Raylib_Line_Info getWinningLine(int grid[][MAX_COL]);
+void draw_message(char* message, int x, int y, Color c);
+void draw_waiting_for_opponent_message(void);
+void draw_opponent_dissconnected_message(void);
+void draw_game_result_message(char*);
 void strikeThroughWinningLine(int grid[][MAX_COL]);
 void strikeThrough(Vector2, Vector2);
 void strikeThroughRow(int row);
@@ -111,7 +109,10 @@ int main(void)
     freeaddrinfo(serverinfo); // struct not needed anymore
 
     int grid[3][3] = {{0,0,0}, {0,0,0}, {0,0,0}};
-    Bool gameover = False;
+    Bool game_in_progress = False;
+    Bool waiting_for_opponent = False;
+    Bool opponent_dissconnected = False;
+    char* game_result = NULL;
     int numbytes;
     int buf[10];
     int temp[9] = {0};
@@ -122,7 +123,7 @@ int main(void)
 
     while (!WindowShouldClose())
     {
-        if(IsMouseButtonPressed(LEFT_MOUSE_BUTTON))
+        if(IsMouseButtonPressed(LEFT_MOUSE_BUTTON) && game_in_progress)
         {
             GridCell clickedGridCell = getGridCell(GetMousePosition());
             int row = htonl((int)clickedGridCell.row);
@@ -170,8 +171,17 @@ int main(void)
                 case SERVER_MESSAGE_CODE_INVALID:
                     break;
                 case SERVER_MESSAGE_CODE_WAITING_FOR_OPPONENT:
+                    waiting_for_opponent = True;
+                    break;
+                case SERVER_MESSAGE_CODE_GAME_STARTED:
+                    printf("Game started\n");
+                    game_in_progress = True;
+                    waiting_for_opponent = False;
                     break;
                 case SERVER_MESSAGE_CODE_OPPONENT_DISSCONNECTED:
+                    game_in_progress = False;
+                    waiting_for_opponent = False;
+                    opponent_dissconnected = True;
                     break;
                 case SERVER_MESSAGE_CODE_GAME_DATA_UPDATE:
                     // clear temp array before reading
@@ -181,16 +191,16 @@ int main(void)
                     recieveAndUpdateGameData(sockfd, grid, temp);
                     break;
                 case SERVER_MESSAGE_CODE_GAME_OVER_WIN:
-                    printf("I WIN\n");
-                    gameover = True;
+                    game_in_progress = False;
+                    game_result = "Win";
                     break;
                 case SERVER_MESSAGE_CODE_GAME_OVER_LOSS:
-                    printf("I LOST\n");
-                    gameover = True;
+                    game_in_progress = False;
+                    game_result = "Lose";
                     break;
                 case SERVER_MESSAGE_CODE_GAME_OVER_DRAW:
-                    printf("WE DREW\n");
-                    gameover = True;
+                    game_in_progress = False;
+                    game_result = "Drew";
                     break;
                 default:
                     break;
@@ -200,14 +210,25 @@ int main(void)
 
         // Rendering logic
         BeginDrawing();
-        if(!gameover)
+        ClearBackground(RAYWHITE);
+        if(opponent_dissconnected)
         {
-            ClearBackground(RAYWHITE);
-            renderGame(grid);
+            draw_opponent_dissconnected_message();
+        }
+        else if(waiting_for_opponent)
+        {
+            draw_waiting_for_opponent_message();
         }
         else
         {
+            renderGame(grid);
+        }
+
+        // TODO: add render logic for text overlay
+        if(!game_in_progress && !waiting_for_opponent)
+        {
             strikeThroughWinningLine(grid);
+            draw_game_result_message(game_result);
         }
         EndDrawing();
     }
@@ -269,6 +290,35 @@ void draw_nought(size_t gridRow, size_t gridCol)
 
     DrawCircle(centreX, centreY, NOUGHT_OUTER_RADIUS, BLACK);
     DrawCircle(centreX, centreY, NOUGHT_INNER_RADIUS, RAYWHITE);
+}
+
+void draw_message(char* message, int x, int y, Color c)
+{
+    DrawText(message, x, y, FONT_SIZE, c);
+}
+
+void draw_waiting_for_opponent_message(void)
+{
+    char* message = "Waiting for opponent";
+    int messageWidth = MeasureText(message, FONT_SIZE);
+    draw_message(message, (WINDOW_WIDTH / 2) - (messageWidth / 2), (WINDOW_HEIGHT / 2), BLACK);
+}
+
+void draw_opponent_dissconnected_message(void)
+{
+    char* message = "Opponent Dissconnected";
+    int messageWidth = MeasureText(message, FONT_SIZE);
+    draw_message(message, (WINDOW_WIDTH / 2) - (messageWidth / 2), (WINDOW_HEIGHT / 2), BLACK);
+}
+
+void draw_game_result_message(char* game_result)
+{
+    if(game_result == NULL) { return; }
+    // render game result message
+    int messageWidth = MeasureText(game_result, FONT_SIZE);
+    Color c = (strcmp(game_result, "Drew") == 0) ? PURPLE : (strcmp(game_result, "Win") == 0) ? BLUE : RED;
+    draw_message(game_result, (WINDOW_WIDTH / 2) - (messageWidth / 2), (WINDOW_HEIGHT / 2) - 10, c);
+
 }
 
 void renderGame(int grid[3][3])
@@ -377,7 +427,7 @@ void strikeThroughWinningLine(int grid[][MAX_COL])
 
 void strikeThrough(Vector2 start, Vector2 end)
 {
-    DrawLineEx(start, end, LINE_THICKNESS_STRIKE, RED);
+    DrawLineEx(start, end, LINE_THICKNESS_STRIKE, ColorAlpha(RED, 0.5f));
 }
 
 void strikeThroughRow(int row)

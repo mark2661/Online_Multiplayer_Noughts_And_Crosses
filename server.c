@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -17,6 +18,11 @@
 
 // DEBUG Functions
 void printGrid(int grid[3][3]);
+
+void sendGameStartMessage(int clientsFD[], size_t clientsFDLength);
+void sendWaitingForOpponentMessage(int clientFD);
+void sendOpponentDisconnectedMessage(int clientFD);
+
 
 enum GameResult{
     GAME_IN_PROGRESS,
@@ -32,7 +38,7 @@ enum Player{
 };
 
 typedef struct{
-    int grid[3][3];
+    int grid[MAX_ROW][MAX_COL];
 } Game;
 
 typedef struct{
@@ -99,7 +105,7 @@ enum GameResult isGameOver(Game* game)
     int l2rDiagonal = game->grid[0][0] + game->grid[1][1] + game->grid[2][2];
     if(abs(l2rDiagonal) == 3) { return (l2rDiagonal == 3) ? P1WIN : P2WIN; }
     
-    int r2lDiagonal = game->grid[0][2] + game->grid[1][1] + game->grid[0][2];
+    int r2lDiagonal = game->grid[0][2] + game->grid[1][1] + game->grid[2][0];
     if(abs(r2lDiagonal) == 3) { return (r2lDiagonal == 3) ? P1WIN : P2WIN; }
 
     //check draw condtion
@@ -144,7 +150,6 @@ int sendClientUpdate(int client, HeapArrayInt noGameGrid)
     // prepend server message code in network byte order
     noGameGridWithSererMessageCode[0] = htonl(SERVER_MESSAGE_CODE_GAME_DATA_UPDATE);
     memcpy(noGameGridWithSererMessageCode+1, noGameGrid.array, *(noGameGrid.size));
-    // int s = send(client, noGameGrid.array, *(noGameGrid.size), 0);
     int s = send(client, noGameGridWithSererMessageCode, (*(noGameGrid.size)+(1*sizeof(int))), 0);
     if (s == -1)
     {
@@ -193,22 +198,85 @@ void sendGameOverUpdate(int clients[2], enum Player winner)
     }
 }
 
+void sendGameStartMessage(int clientsFD[], size_t clientsFDLength)
+{
+    for(size_t i=0; i<clientsFDLength; i++)
+    {
+        int startGameMessage[SERVER_MESSAGE_LENGTH];
+        memset(startGameMessage, 0, SERVER_MESSAGE_LENGTH_BYTES);
+        startGameMessage[0] = htonl(SERVER_MESSAGE_CODE_GAME_STARTED);
+        int s = send(clientsFD[i], startGameMessage, SERVER_MESSAGE_LENGTH_BYTES, 0);
+        if (s == -1)
+        {
+            perror("sendGameStartMessage:send");
+            exit(1);
+        }
+    }
+}
+
+void sendWaitingForOpponentMessage(int clientFD)
+{
+    int waitingForOpponentMessage[SERVER_MESSAGE_LENGTH];
+    memset(waitingForOpponentMessage, 0, SERVER_MESSAGE_LENGTH_BYTES);
+    waitingForOpponentMessage[0] = htonl(SERVER_MESSAGE_CODE_WAITING_FOR_OPPONENT);
+    int s = send(clientFD, waitingForOpponentMessage, SERVER_MESSAGE_LENGTH_BYTES, 0);
+    if (s == -1)
+    {
+        perror("sendWaitingForOpponentMessage:send");
+        exit(1);
+    }
+}
+
+void sendOpponentDisconnectedMessage(int clientFD)
+{
+    int opponentDisconnectedMessage[SERVER_MESSAGE_LENGTH];
+    memset(opponentDisconnectedMessage, 0, SERVER_MESSAGE_LENGTH_BYTES);
+    opponentDisconnectedMessage[0] = htonl(SERVER_MESSAGE_CODE_OPPONENT_DISSCONNECTED);
+    int s = send(clientFD, opponentDisconnectedMessage, SERVER_MESSAGE_LENGTH_BYTES, 0);
+    if (s == -1)
+    {
+        perror("sendOpponentDisconnectedMessage:send");
+        exit(1);
+    }
+}
+
 ClientInput getClientInput(int client)
 {
-    int r, c;
+    int r, c, recieve_r, recieve_c;
     ClientInput cInput;
-    if (recv(client, &r, sizeof(int), 0) == -1)
+
+    // add timeout to recv calls, prevents blocking in the case of a disconnected opponent
+    struct timeval tv;
+    tv.tv_sec = SERVER_RECV_TIMEOUT_VALUE_IN_SECONDS;
+    tv.tv_usec = 0;
+    setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
+
+    if ((recieve_r = recv(client, &r, sizeof(int), 0)) == -1)
     {
-        perror("recv:r");
+        perror("getClientInput:recv:r");
         exit(1);
     }
-    if (recv(client, &c, sizeof(int), 0) == -1)
+
+    if ((recieve_c = recv(client, &c, sizeof(int), 0)) == -1)
     {
-        perror("recv:c");
+        perror("getClientInput:recv:c");
         exit(1);
     }
-    cInput.row = ntohl(r);
-    cInput.col = ntohl(c);
+
+    if (recieve_r == 0 || recieve_c == 0)
+    {
+        // setting values to -1 will be used to indicate error
+        cInput.row = -1;
+        cInput.col = -1;
+    }
+
+    else
+    {
+        cInput.row = ntohl(r);
+        cInput.col = ntohl(c);
+    }
+
     return cInput;
 }
 
@@ -324,6 +392,7 @@ int main(void)
         }
         inet_ntop(client1_addr.ss_family, get_in_addr((struct sockaddr*)&client1_addr), s, sizeof s);
         printf("Server: got connection from %s\n", s);
+        sendWaitingForOpponentMessage(client1);
 
         client2 = accept(sockfd, (struct sockaddr *)&client2_addr, &sin_size);
         if(client2 == -1)
@@ -338,6 +407,9 @@ int main(void)
         if(!fork())
         {
             close(sockfd);
+            int clients[] = {client1, client2};
+            size_t clients_length = 2;
+            sendGameStartMessage(clients, clients_length);
             int quit = 0;
             Game game;
             // Zero out game grid
@@ -356,6 +428,8 @@ int main(void)
                 ClientInput c1Input;
                 ClientInput c2Input;
                 HeapArrayInt noGameGrid;
+
+                // TODO: Notify client if opponent dissconnects using SERVER_MESSAGE_CODE_OPPONENT_DISSCONNECT
 
                 // poll indefinetly until data recived from one of the client sockets
                 int poll_count = poll(pfds, fd_count, -1);
@@ -376,6 +450,13 @@ int main(void)
                             {
                                 // process client1 input and switch turn to client2
                                 c1Input = getClientInput(client1);
+                                if(c1Input.row == -1 && c1Input.col == -1)
+                                {
+                                    // notify client2 that client1 has disconnected
+                                    sendOpponentDisconnectedMessage(client2);
+                                    quit = True;
+                                    break;
+                                }
                                 Bool successfulUpdate = updateGameGrid(&game, c1Input, PLAYER_ONE_GRID_MARKER);
                                 // printf("Is valid update p1: %d\n", successfulUpdate);
                                 if (successfulUpdate)
@@ -402,6 +483,13 @@ int main(void)
                             {
                                 // process client2 input and switch turn to client1
                                 c2Input = getClientInput(client2);
+                                if(c2Input.row == -1 && c2Input.col == -1)
+                                {
+                                    // notify client1 that client2 has disconnected
+                                    sendOpponentDisconnectedMessage(client1);
+                                    quit = True;
+                                    break;
+                                }
                                 Bool successfulUpdate = updateGameGrid(&game, c2Input, PLAYER_TWO_GRID_MARKER);
                                 if (successfulUpdate)
                                 {
@@ -455,7 +543,7 @@ int main(void)
         close(client2);
     }
 
-    // return 0;
+    return 0;
 }
 // DEBUG Functions
 void printGrid(int grid[3][3])
