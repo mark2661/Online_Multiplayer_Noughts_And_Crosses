@@ -13,16 +13,13 @@
 #include <signal.h>
 #include <poll.h>
 #include "globals.h"
+#include <time.h>
 
 #define BACKLOG 10
 
-// DEBUG Functions
-void printGrid(int grid[3][3]);
-
-void sendGameStartMessage(int clientsFD[], size_t clientsFDLength);
-void sendWaitingForOpponentMessage(int clientFD);
-void sendOpponentDisconnectedMessage(int clientFD);
-
+// globals
+time_t t;
+struct tm tm;
 
 enum GameResult{
     GAME_IN_PROGRESS,
@@ -37,6 +34,17 @@ enum Player{
     PLAYER_TWO
 };
 
+typedef enum ServerLogCode{
+    SERVER_LOG_CODE_ERROR,
+    SERVER_LOG_CODE_CONNECTION_RECIEVED,
+    SERVER_LOG_CODE_CONNECTION_LOST,
+    SERVER_LOG_CODE_GAME_STARTED,
+    SERVER_LOG_CODE_GAME_ENDED,
+    SERVER_LOG_CODE_GAME_UPDATED,
+    SERVER_LOG_CODE_MESSEGE_RECIEVED,
+    SERVER_LOG_CODE_MESSEGE_SENT
+}ServerLogCode;
+
 typedef struct{
     int grid[MAX_ROW][MAX_COL];
 } Game;
@@ -50,6 +58,24 @@ typedef struct{
     int row;
     int col;
 }ClientInput;
+
+// DEBUG Functions
+void printGrid(int grid[3][3]);
+
+void sendGameStartMessage(int clientsFD[], size_t clientsFDLength);
+void sendWaitingForOpponentMessage(int clientFD);
+void sendOpponentDisconnectedMessage(int clientFD);
+Bool updateServerLog(FILE* log, ServerLogCode code, char* ip_address);
+Bool appendMessageToServerLog(FILE* log, char* message);
+Bool appendErrorMessageToServerLog(FILE* log);
+Bool appendConnectionRecievedMessageToServerLog(FILE* log, char* IPv4_address);
+Bool appendConnectionLostMessageToServerLog(FILE* log, char* IPv4_address);
+Bool appendGameStartedMessageToServerLog(FILE* log);
+Bool appendGameEndedMessageToServerLog(FILE* log);
+Bool appendGameUpdatedMessageToServerLog(FILE* log);
+Bool appendGameMessageRecievedMessageToServerLog(FILE* log, char* IPv4_adress);
+Bool appendGameMessageSentMessageToServerLog(FILE* log, char* IPv4_adress);
+
 
 Bool updateGameGrid(Game* game, ClientInput clientInput, int value)
 {
@@ -82,11 +108,6 @@ void resetGameGrid(Game* game)
 
 enum GameResult isGameOver(Game* game)
 {
-    // TODO: Improve this function in the future tell notify which player won
-    // could use an enum with a set of return codes 0 indicates game not over (False value), 
-    // 1 = player1 has won, 2 = player2 has won, 3 = draw (All True values)
-
-
     // Check horizontal win conditions
     for(size_t row=0; row<MAX_ROW; row++)
     {
@@ -180,8 +201,8 @@ void sendGameOverUpdate(int clients[2], enum Player winner)
     }
 
     // pad remainder of client messages with zeros to fit the server message length
-    memset(playerOneMessege + 1, 0, SERVER_MESSAGE_LENGTH_BYTES-(SERVER_MESSAGE_CODE_LENGTH*sizeof(int)));
-    memset(playerTwoMessege + 1, 0, SERVER_MESSAGE_LENGTH_BYTES-(SERVER_MESSAGE_CODE_LENGTH*sizeof(int)));
+    memset(playerOneMessege + 1, 0, SERVER_MESSAGE_LENGTH_WITHOUT_SERVER_MESSAGE_CODE_BYTES);
+    memset(playerTwoMessege + 1, 0, SERVER_MESSAGE_LENGTH_WITHOUT_SERVER_MESSAGE_CODE_BYTES);
 
     int s1 = send(clients[0], playerOneMessege, SERVER_MESSAGE_LENGTH_BYTES, 0);
     if (s1 == -1)
@@ -239,6 +260,117 @@ void sendOpponentDisconnectedMessage(int clientFD)
         exit(1);
     }
 }
+
+Bool updateServerLog(FILE* log, ServerLogCode code, char* ip_address)
+{    
+    switch (code)
+    {
+    case SERVER_LOG_CODE_ERROR:
+        return appendErrorMessageToServerLog(log);
+        break;
+    case SERVER_LOG_CODE_CONNECTION_RECIEVED:
+        return appendConnectionRecievedMessageToServerLog(log, ip_address);
+        break;
+    case SERVER_LOG_CODE_CONNECTION_LOST:
+        return appendConnectionLostMessageToServerLog(log, ip_address);
+        break;
+    case SERVER_LOG_CODE_GAME_STARTED:
+        return appendGameStartedMessageToServerLog(log);
+        break;
+    case SERVER_LOG_CODE_GAME_ENDED:
+        return appendGameEndedMessageToServerLog(log);
+        break;
+    case SERVER_LOG_CODE_GAME_UPDATED:
+        return appendGameUpdatedMessageToServerLog(log);
+        break;
+    case SERVER_LOG_CODE_MESSEGE_RECIEVED:
+        return appendGameMessageRecievedMessageToServerLog(log, ip_address);
+        break;
+    case SERVER_LOG_CODE_MESSEGE_SENT:
+        return appendGameMessageSentMessageToServerLog(log, ip_address);
+        break;
+    default:
+        return False;
+        break;
+    }
+}
+
+Bool appendMessageToServerLog(FILE* log, char* message)
+{
+    if(log == NULL || message == NULL) { return False; }
+
+    char* server_message;
+    t = time(NULL);
+    tm = *localtime(&t);
+    asprintf(&server_message, "Server: %d/%02d/%02d %02d:%02d:%02d\t %s\n", 
+             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, message);
+    fprintf(log, "%s",server_message);
+    free(server_message);
+    return True;
+}
+
+Bool appendErrorMessageToServerLog(FILE* log)
+{
+    char* message = "An Error has occured with the server";
+    return appendMessageToServerLog(log, message);
+}
+
+Bool appendConnectionRecievedMessageToServerLog(FILE* log, char* IPv4_address)
+{
+    if (IPv4_address == NULL) { return False; }
+    char* message;
+    asprintf(&message, "Connection recieved from: %s", IPv4_address);
+    Bool res = appendMessageToServerLog(log, message);
+    free(message);
+    return res;
+}
+
+Bool appendConnectionLostMessageToServerLog(FILE* log, char* IPv4_address)
+{
+    if (IPv4_address == NULL) { return False; }
+    char* message;
+    asprintf(&message, "Connection to %s lost", IPv4_address);
+    Bool res = appendMessageToServerLog(log, message);
+    free(message);
+    return res;
+}
+
+Bool appendGameStartedMessageToServerLog(FILE* log)
+{
+    char* message = "Game started";
+    return appendMessageToServerLog(log, message); 
+}
+
+Bool appendGameEndedMessageToServerLog(FILE* log)
+{
+    char* message = "Game ended";
+    return appendMessageToServerLog(log, message); 
+}
+
+Bool appendGameUpdatedMessageToServerLog(FILE* log)
+{
+    char* message = "Game updated";
+    return appendMessageToServerLog(log, message); 
+}
+
+Bool appendGameMessageRecievedMessageToServerLog(FILE* log, char* IPv4_address)
+{
+    if (IPv4_address == NULL) { return False; }
+    char* message;
+    asprintf(&message, "Message recieved from: %s", IPv4_address);
+    Bool res = appendMessageToServerLog(log, message);
+    free(message);
+}
+
+Bool appendGameMessageSentMessageToServerLog(FILE* log, char* IPv4_address)
+{
+    if (IPv4_address == NULL) { return False; }
+    char* message;
+    asprintf(&message, "Message sent to: %s", IPv4_address);
+    Bool res = appendMessageToServerLog(log, message);
+    free(message);
+}
+
 
 ClientInput getClientInput(int client)
 {
@@ -407,6 +539,15 @@ int main(void)
         if(!fork())
         {
             close(sockfd);
+            // server log
+            t = time(NULL);
+            tm = *localtime(&t);
+            char* server_log_name;
+            asprintf(&server_log_name, "server-log-%d-%02d-%02d_%02d:%02d:%02d.txt", tm.tm_year + 1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+            FILE* serverLog = fopen(server_log_name, "w");
+            updateServerLog(serverLog, SERVER_LOG_CODE_GAME_STARTED, NULL);
+            free(server_log_name);
+            // end server log
             int clients[] = {client1, client2};
             size_t clients_length = 2;
             sendGameStartMessage(clients, clients_length);
@@ -422,14 +563,13 @@ int main(void)
             pfds[1].events = POLLIN;
             int fd_count = 2;
             
-
+            //TODO: add server logs calls
             while(!quit)
             {
                 ClientInput c1Input;
                 ClientInput c2Input;
                 HeapArrayInt noGameGrid;
 
-                // TODO: Notify client if opponent dissconnects using SERVER_MESSAGE_CODE_OPPONENT_DISSCONNECT
 
                 // poll indefinetly until data recived from one of the client sockets
                 int poll_count = poll(pfds, fd_count, -1);
@@ -462,8 +602,6 @@ int main(void)
                                 if (successfulUpdate)
                                 {
                                     noGameGrid = getGameGridInNetworkByteOrder(&game);
-                                    // (1)TODO: need to design a protocol for sending messages so the server and
-                                    // client can send different types of messages to one another.
                                     sendClientUpdate(client1, noGameGrid);
                                     sendClientUpdate(client2, noGameGrid);
                                     freeHeapArrayInt(&noGameGrid);
@@ -513,8 +651,6 @@ int main(void)
                             int c[2] = {client1, client2};
                             switch (current_game_status)
                             {
-                                // (2)TODO: handle server shutdown, end game, and notify clients of results (see (1))
-                                // need to also notify loseing player
                             case P1WIN:
                                 printf("Game over! Player 1 won\n");
                                 sendGameOverUpdate(c, PLAYER_ONE);
@@ -535,6 +671,22 @@ int main(void)
                     }
                 }
             }
+            fclose(serverLog);
+            printf("Save server log? Y or N: ");
+            char* answer;
+            scanf("%s", answer);
+            // convert answer to lower case
+            for(size_t i=0; i<strlen(answer); i++){
+                if(answer[i] >= 65 && answer[i]<=90)
+                {
+                    answer[i] += 32;
+                }
+            } 
+            if(strcmp(answer, "y") == 0)
+            {
+                remove(server_log_name);
+            }
+
             close(client1);
             close(client2);
             exit(0);

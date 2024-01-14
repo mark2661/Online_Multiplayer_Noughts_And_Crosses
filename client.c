@@ -226,7 +226,6 @@ int main(void)
             renderGame(grid);
         }
 
-        // TODO: add render logic for text overlay
         if(!game_in_progress && !waiting_for_opponent)
         {
             strikeThroughWinningLine(grid);
