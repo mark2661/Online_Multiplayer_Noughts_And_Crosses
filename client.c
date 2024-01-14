@@ -224,13 +224,10 @@ int main(void)
         else
         {
             renderGame(grid);
-        }
-
-        if(!game_in_progress && !waiting_for_opponent)
-        {
             strikeThroughWinningLine(grid);
             draw_game_result_message(game_result);
         }
+
         EndDrawing();
     }
     

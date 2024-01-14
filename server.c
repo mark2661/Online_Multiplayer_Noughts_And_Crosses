@@ -12,8 +12,8 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <poll.h>
-#include "globals.h"
 #include <time.h>
+#include "globals.h"
 
 #define BACKLOG 10
 
@@ -304,8 +304,9 @@ Bool appendMessageToServerLog(FILE* log, char* message)
     tm = *localtime(&t);
     asprintf(&server_message, "Server: %d/%02d/%02d %02d:%02d:%02d\t %s\n", 
              tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, message);
+
     fprintf(log, "%s",server_message);
-    free(server_message);
+    // free(server_message);
     return True;
 }
 
@@ -412,10 +413,12 @@ ClientInput getClientInput(int client)
     return cInput;
 }
 
-void rejectClientInput(int client)
+Bool rejectClientInput(int client)
 {
     // get the client input but ignore (and don't return) it.
-    getClientInput(client);
+    ClientInput input = getClientInput(client);
+    return !(input.row == -1 || input.col == -1);
+
 }
 
 void sigchild_handler(int s)
@@ -546,7 +549,6 @@ int main(void)
             asprintf(&server_log_name, "server-log-%d-%02d-%02d_%02d:%02d:%02d.txt", tm.tm_year + 1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
             FILE* serverLog = fopen(server_log_name, "w");
             updateServerLog(serverLog, SERVER_LOG_CODE_GAME_STARTED, NULL);
-            free(server_log_name);
             // end server log
             int clients[] = {client1, client2};
             size_t clients_length = 2;
@@ -579,6 +581,7 @@ int main(void)
                     exit(1);
                 }
 
+                // TODO: (1)fix bug when client 2 disconnects before client 1 (see (2))
                 // loop over poll results and check for data from client sockets 
                 for(size_t i=0; i<fd_count; i++)
                 {
@@ -612,7 +615,17 @@ int main(void)
                             }
 
                             // reject client2's inputs whilst it is client1's turn
-                            else if (pfds[i].fd == client2) { rejectClientInput(client2); }
+                            // TODO: (2) maybe need to handle disconnects here?
+                            else if (pfds[i].fd == client2) 
+                            { 
+                                if(!rejectClientInput(client2))
+                                {
+                                    // notify client1 that client2 has disconnected
+                                    sendOpponentDisconnectedMessage(client1);
+                                    quit = True;
+                                    break;
+                                }
+                            }
                         }
 
                         else if(!playerOneTurn)
@@ -642,7 +655,16 @@ int main(void)
                                
                             }
                             // reject client1's inputs whilst it is client2's turn
-                            else if (pfds[i].fd == client1) { rejectClientInput(client1); }
+                            else if (pfds[i].fd == client1) 
+                            { 
+                                if(!rejectClientInput(client1))
+                                {
+                                    // notify client2 that client1 has disconnected
+                                    sendOpponentDisconnectedMessage(client2);
+                                    quit = True;
+                                    break;
+                                }
+                            }
                         }
 
                         enum GameResult current_game_status = isGameOver(&game);
@@ -673,20 +695,20 @@ int main(void)
             }
             fclose(serverLog);
             printf("Save server log? Y or N: ");
-            char* answer;
-            scanf("%s", answer);
+            char answer;
+            scanf("%c", &answer);
             // convert answer to lower case
-            for(size_t i=0; i<strlen(answer); i++){
-                if(answer[i] >= 65 && answer[i]<=90)
-                {
-                    answer[i] += 32;
-                }
-            } 
-            if(strcmp(answer, "y") == 0)
+            if(answer>=65 && answer<=90)
+            {
+                answer += 32;
+            }
+
+            if(answer == 'n')
             {
                 remove(server_log_name);
             }
 
+            free(server_log_name);
             close(client1);
             close(client2);
             exit(0);
