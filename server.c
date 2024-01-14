@@ -20,6 +20,8 @@
 // globals
 time_t t;
 struct tm tm;
+char c1addr[INET6_ADDRSTRLEN];
+char c2addr[INET6_ADDRSTRLEN];
 
 enum GameResult{
     GAME_IN_PROGRESS,
@@ -448,7 +450,6 @@ int main(void)
     socklen_t sin_size;
     struct sigaction sa;
     int yes=1;
-    char s[INET6_ADDRSTRLEN];
     int rv;
 
 
@@ -525,8 +526,8 @@ int main(void)
             perror("accept");
             continue;
         }
-        inet_ntop(client1_addr.ss_family, get_in_addr((struct sockaddr*)&client1_addr), s, sizeof s);
-        printf("Server: got connection from %s\n", s);
+        inet_ntop(client1_addr.ss_family, get_in_addr((struct sockaddr*)&client1_addr), c1addr, sizeof c1addr);
+        printf("Server: got connection from %s\n", c1addr);
         sendWaitingForOpponentMessage(client1);
 
         client2 = accept(sockfd, (struct sockaddr *)&client2_addr, &sin_size);
@@ -535,8 +536,8 @@ int main(void)
             perror("accept");
             continue;
         }
-        inet_ntop(client2_addr.ss_family, get_in_addr((struct sockaddr*)&client2_addr), s, sizeof s);
-        printf("Server: got connection from %s\n", s);
+        inet_ntop(client2_addr.ss_family, get_in_addr((struct sockaddr*)&client2_addr), c2addr, sizeof c2addr);
+        printf("Server: got connection from %s\n", c2addr);
         printf("Starting Game!\n");
 
         if(!fork())
@@ -595,20 +596,30 @@ int main(void)
                                 c1Input = getClientInput(client1);
                                 if(c1Input.row == -1 && c1Input.col == -1)
                                 {
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_CONNECTION_LOST, c1addr);
                                     // notify client2 that client1 has disconnected
                                     sendOpponentDisconnectedMessage(client2);
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c2addr);
                                     quit = True;
                                     break;
                                 }
+
+                                else
+                                {
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_RECIEVED, c1addr);
+                                }
+
                                 Bool successfulUpdate = updateGameGrid(&game, c1Input, PLAYER_ONE_GRID_MARKER);
                                 // printf("Is valid update p1: %d\n", successfulUpdate);
                                 if (successfulUpdate)
                                 {
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_GAME_UPDATED, NULL);
                                     noGameGrid = getGameGridInNetworkByteOrder(&game);
                                     sendClientUpdate(client1, noGameGrid);
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c1addr);
                                     sendClientUpdate(client2, noGameGrid);
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c2addr);
                                     freeHeapArrayInt(&noGameGrid);
-
                                     // Switch turn to other player
                                     playerOneTurn = !playerOneTurn;
                                 }
@@ -620,8 +631,10 @@ int main(void)
                             { 
                                 if(!rejectClientInput(client2))
                                 {
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_CONNECTION_LOST, c2addr);
                                     // notify client1 that client2 has disconnected
                                     sendOpponentDisconnectedMessage(client1);
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c1addr);
                                     quit = True;
                                     break;
                                 }
@@ -637,16 +650,25 @@ int main(void)
                                 if(c2Input.row == -1 && c2Input.col == -1)
                                 {
                                     // notify client1 that client2 has disconnected
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_CONNECTION_LOST, c2addr);
                                     sendOpponentDisconnectedMessage(client1);
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c1addr);
                                     quit = True;
                                     break;
+                                }
+                                else
+                                {
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_RECIEVED, c2addr);
                                 }
                                 Bool successfulUpdate = updateGameGrid(&game, c2Input, PLAYER_TWO_GRID_MARKER);
                                 if (successfulUpdate)
                                 {
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_GAME_UPDATED, NULL);
                                     noGameGrid = getGameGridInNetworkByteOrder(&game);
                                     sendClientUpdate(client1, noGameGrid);
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c1addr);
                                     sendClientUpdate(client2, noGameGrid);
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c2addr);
                                     freeHeapArrayInt(&noGameGrid);
 
                                     // Switch turn to other player
@@ -659,8 +681,10 @@ int main(void)
                             { 
                                 if(!rejectClientInput(client1))
                                 {
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_CONNECTION_LOST, c1addr);
                                     // notify client2 that client1 has disconnected
                                     sendOpponentDisconnectedMessage(client2);
+                                    updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c2addr);
                                     quit = True;
                                     break;
                                 }
@@ -674,16 +698,25 @@ int main(void)
                             switch (current_game_status)
                             {
                             case P1WIN:
-                                printf("Game over! Player 1 won\n");
+                                // printf("Game over! Player 1 won\n");
+                                updateServerLog(serverLog, SERVER_LOG_CODE_GAME_ENDED, NULL);
                                 sendGameOverUpdate(c, PLAYER_ONE);
+                                updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c1addr);
+                                updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c2addr);
                                 break;
                             case P2WIN: 
-                                printf("Game over! Player 2 won\n");
+                                // printf("Game over! Player 2 won\n");
+                                updateServerLog(serverLog, SERVER_LOG_CODE_GAME_ENDED, NULL);
                                 sendGameOverUpdate(c, PLAYER_TWO);
+                                updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c1addr);
+                                updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c2addr);
                                 break;
                             case DRAW: 
-                                printf("Game over! Draw\n");
+                                // printf("Game over! Draw\n");
+                                updateServerLog(serverLog, SERVER_LOG_CODE_GAME_ENDED, NULL);
                                 sendGameOverUpdate(c, PLAYER_NONE);
+                                updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c1addr);
+                                updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c2addr);
                                 break;
                             default:
                                 break;
