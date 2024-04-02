@@ -527,7 +527,6 @@ int main(void)
             continue;
         }
         inet_ntop(client1_addr.ss_family, get_in_addr((struct sockaddr*)&client1_addr), c1addr, sizeof c1addr);
-        printf("Server: got connection from %s\n", c1addr);
         sendWaitingForOpponentMessage(client1);
 
         client2 = accept(sockfd, (struct sockaddr *)&client2_addr, &sin_size);
@@ -537,10 +536,9 @@ int main(void)
             continue;
         }
         inet_ntop(client2_addr.ss_family, get_in_addr((struct sockaddr*)&client2_addr), c2addr, sizeof c2addr);
-        printf("Server: got connection from %s\n", c2addr);
-        printf("Starting Game!\n");
 
         if(!fork())
+        // TODO: Refactor 
         {
             close(sockfd);
             // server log
@@ -566,7 +564,6 @@ int main(void)
             pfds[1].events = POLLIN;
             int fd_count = 2;
             
-            //TODO: add server logs calls
             while(!quit)
             {
                 ClientInput c1Input;
@@ -582,7 +579,6 @@ int main(void)
                     exit(1);
                 }
 
-                // TODO: (1)fix bug when client 2 disconnects before client 1 (see (2))
                 // loop over poll results and check for data from client sockets 
                 for(size_t i=0; i<fd_count; i++)
                 {
@@ -610,7 +606,6 @@ int main(void)
                                 }
 
                                 Bool successfulUpdate = updateGameGrid(&game, c1Input, PLAYER_ONE_GRID_MARKER);
-                                // printf("Is valid update p1: %d\n", successfulUpdate);
                                 if (successfulUpdate)
                                 {
                                     updateServerLog(serverLog, SERVER_LOG_CODE_GAME_UPDATED, NULL);
@@ -626,7 +621,6 @@ int main(void)
                             }
 
                             // reject client2's inputs whilst it is client1's turn
-                            // TODO: (2) maybe need to handle disconnects here?
                             else if (pfds[i].fd == client2) 
                             { 
                                 if(!rejectClientInput(client2))
@@ -698,21 +692,18 @@ int main(void)
                             switch (current_game_status)
                             {
                             case P1WIN:
-                                // printf("Game over! Player 1 won\n");
                                 updateServerLog(serverLog, SERVER_LOG_CODE_GAME_ENDED, NULL);
                                 sendGameOverUpdate(c, PLAYER_ONE);
                                 updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c1addr);
                                 updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c2addr);
                                 break;
                             case P2WIN: 
-                                // printf("Game over! Player 2 won\n");
                                 updateServerLog(serverLog, SERVER_LOG_CODE_GAME_ENDED, NULL);
                                 sendGameOverUpdate(c, PLAYER_TWO);
                                 updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c1addr);
                                 updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c2addr);
                                 break;
                             case DRAW: 
-                                // printf("Game over! Draw\n");
                                 updateServerLog(serverLog, SERVER_LOG_CODE_GAME_ENDED, NULL);
                                 sendGameOverUpdate(c, PLAYER_NONE);
                                 updateServerLog(serverLog, SERVER_LOG_CODE_MESSEGE_SENT, c1addr);

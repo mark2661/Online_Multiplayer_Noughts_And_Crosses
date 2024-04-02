@@ -1,0 +1,34 @@
+Server: 2024/04/02 21:07:15	 Game started
+Server: 2024/04/02 21:07:22	 Message recieved from: 127.0.0.1
+Server: 2024/04/02 21:07:22	 Game updated
+Server: 2024/04/02 21:07:22	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:22	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:27	 Message recieved from: 127.0.0.1
+Server: 2024/04/02 21:07:27	 Game updated
+Server: 2024/04/02 21:07:27	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:27	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:29	 Message recieved from: 127.0.0.1
+Server: 2024/04/02 21:07:29	 Game updated
+Server: 2024/04/02 21:07:29	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:29	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:32	 Message recieved from: 127.0.0.1
+Server: 2024/04/02 21:07:32	 Game updated
+Server: 2024/04/02 21:07:32	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:32	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:35	 Message recieved from: 127.0.0.1
+Server: 2024/04/02 21:07:35	 Game updated
+Server: 2024/04/02 21:07:35	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:35	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:38	 Message recieved from: 127.0.0.1
+Server: 2024/04/02 21:07:38	 Game updated
+Server: 2024/04/02 21:07:38	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:38	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:40	 Message recieved from: 127.0.0.1
+Server: 2024/04/02 21:07:40	 Game updated
+Server: 2024/04/02 21:07:40	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:40	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:40	 Game ended
+Server: 2024/04/02 21:07:40	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:40	 Message sent to: 127.0.0.1
+Server: 2024/04/02 21:07:45	 Connection to 127.0.0.1 lost
+Server: 2024/04/02 21:07:45	 Message sent to: 127.0.0.1
