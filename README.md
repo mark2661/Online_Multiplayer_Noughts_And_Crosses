@@ -1,4 +1,5 @@
 # Online Mulitiplyer Noughts And Crosses
+A simple online 2 player noughts and crosses game made in C using [Raylib](https://www.raylib.com/index.html) and the [Unix sockets API](https://man7.org/linux/man-pages/man2/socket.2.html).
 
 ## What I Learned
 
